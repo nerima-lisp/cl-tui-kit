@@ -60,6 +60,10 @@ From the repository root:
     sbcl --script run-tests.lisp
     sbcl --script run-coverage.lisp
 
-The test runner finds cl-weave through CL_WEAVE_ASD or a neighboring checkout.
-The coverage runner recompiles the project with SB-COVER before selecting its
-tests. See [Development](project/development.md) for the complete workflow.
+The runners first resolve cl-host-kit and then discover adjacent ASDF
+definitions for the TTY dependency chain: cl-codec-kit, cl-boundary-kit,
+cl-date-kit, cl-concurrent-kit, and cl-tty-kit. They find cl-weave through
+`CL_WEAVE_ASD` or a neighboring checkout. The coverage runner force-compiles
+the project systems, including the optional TTY and codec systems, before
+selecting its tests and rejects an empty selection. See
+[Development](project/development.md) for the complete workflow.

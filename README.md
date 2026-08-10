@@ -41,9 +41,11 @@ The pure umbrella system — `cl-tui-kit/core`, `/layout`, `/widgets`, `/ansi`,
 and `/testing` — has no dependency outside this repository and Quicklisp.
 Only the optional `cl-tui-kit/tty`, `cl-tui-kit/codec`, and `cl-tui-kit/tests`
 systems require sibling nerima-lisp checkouts: `cl-tui-kit/tty` needs
-`cl-tty-kit`; `cl-tui-kit/codec` needs `cl-codec-kit`; `cl-tui-kit/tests` needs
-both `cl-host-kit` and `cl-weave`. Skip those siblings entirely if only the
-pure umbrella system is being loaded.
+`cl-tty-kit`; `cl-tui-kit/codec` needs `cl-codec-kit`; and `cl-tui-kit/tests`
+loads both optional systems and needs `cl-host-kit` and `cl-weave`. The TTY
+dependency chain also uses `cl-boundary-kit`, `cl-date-kit`, and
+`cl-concurrent-kit`. Skip those siblings entirely if only the pure umbrella
+system is being loaded.
 
 Register the checkout with ASDF using either of the following methods, then
 load the umbrella system as usual.
@@ -67,7 +69,9 @@ Use `cl-tui-kit/core` when an application needs only the dependency-free core;
 load the optional integration systems explicitly when terminal or codec support
 is required. If `cl-tui-kit/tty`, `cl-tui-kit/codec`, or `cl-tui-kit/tests` is
 loaded, also register the corresponding sibling nerima-lisp repositories
-listed above using the same method.
+listed above using the same method. The checked-in test and coverage runners
+can discover adjacent ASDF definitions for this dependency chain; set
+`CL_WEAVE_ASD` when cl-weave is stored elsewhere.
 
 ## Documentation
 
@@ -123,7 +127,10 @@ Run the test suite from the repository root:
 
     sbcl --script run-tests.lisp
 
-The coverage entry point recompiles the project with SB-COVER before selecting
+The test and coverage entry points include the optional TTY and codec
+integration systems. They discover adjacent dependency ASDF definitions when
+needed and accept `CL_WEAVE_ASD` for a non-adjacent cl-weave checkout. The
+coverage entry point recompiles the project with SB-COVER before selecting
 tests:
 
     sbcl --script run-coverage.lisp

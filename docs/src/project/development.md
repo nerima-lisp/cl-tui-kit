@@ -18,11 +18,13 @@ From the repository root:
     sbcl --script run-tests.lisp
 
 The runner loads the local ASDF definition and resolves cl-host-kit before
-using its environment and pathname operations. It resolves cl-weave from
-CL_WEAVE_ASD or a neighboring source checkout. CL_WEAVE_ASD is resolved from
-the current directory, so a relative value works when the command is run from
-the repository root. It then invokes the cl-tui-kit test system. Project
-tooling uses cl-host-kit directly for portability.
+using its environment and pathname operations. When the systems are not
+already registered, it discovers adjacent ASDF definitions for cl-codec-kit,
+cl-boundary-kit, cl-date-kit, cl-concurrent-kit, and cl-tty-kit. It resolves
+cl-weave from `CL_WEAVE_ASD` or a neighboring source checkout. `CL_WEAVE_ASD`
+is resolved from the current directory, so a relative value works when the
+command is run from the repository root. It then invokes the cl-tui-kit test
+system. Project tooling uses cl-host-kit directly for portability.
 
 ## Run coverage
 
@@ -31,9 +33,10 @@ Use the separate coverage entry point:
     sbcl --script run-coverage.lisp
 
 The coverage runner enables SB-COVER before force-compiling the project
-systems. A report directory can be selected with
-CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY. Coverage is a separate acceptance
-condition from ordinary test success.
+systems, including the optional TTY and codec systems, before selecting the
+test suite. It also rejects an empty test selection. A report directory can be
+selected with `CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY`. Coverage is a separate
+acceptance condition from ordinary test success.
 
 The test system also uses cl-weave property tests for algebraic contracts such
 as idempotent modifier normalization. Keep property generators bounded and
