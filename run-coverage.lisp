@@ -5,6 +5,12 @@
 (require :asdf)
 (require :sb-cover)
 
+(defun load-sibling-asd-if-present (root system relative-path)
+  (unless (asdf:find-system system nil)
+    (let ((sibling-asd (merge-pathnames relative-path root)))
+      (when (probe-file sibling-asd)
+        (asdf:load-asd sibling-asd)))))
+
 (let* ((bootstrap-root
          (make-pathname :name nil :type nil :defaults *load-truename*))
        (host-kit-asd
@@ -17,6 +23,17 @@
 (defparameter *cl-tui-kit-root*
   (host-kit:pathname-directory-pathname
    (host-kit:ensure-absolute-pathname *load-truename*)))
+
+(load-sibling-asd-if-present *cl-tui-kit-root* "cl-codec-kit"
+                             "../cl-codec-kit/cl-codec-kit.asd")
+(load-sibling-asd-if-present *cl-tui-kit-root* "cl-boundary-kit"
+                             "../cl-boundary-kit/cl-boundary-kit.asd")
+(load-sibling-asd-if-present *cl-tui-kit-root* "cl-date-kit"
+                             "../cl-date-kit/cl-date-kit.asd")
+(load-sibling-asd-if-present *cl-tui-kit-root* "cl-concurrent-kit"
+                             "../cl-concurrent-kit/cl-concurrent-kit.asd")
+(load-sibling-asd-if-present *cl-tui-kit-root* "cl-tty-kit"
+                             "../cl-tty-kit/cl-tty-kit.asd")
 
 (let ((cl-weave-asd (host-kit:getenv "CL_WEAVE_ASD")))
   (when cl-weave-asd
@@ -52,6 +69,8 @@
                   "cl-tui-kit/layout"
                   "cl-tui-kit/widgets"
                   "cl-tui-kit/ansi"
+                  "cl-tui-kit/tty"
+                  "cl-tui-kit/codec"
                   "cl-tui-kit/testing"
                   "cl-tui-kit"
                   "cl-tui-kit/tests"))

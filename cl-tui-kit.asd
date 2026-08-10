@@ -31,6 +31,7 @@
   :serial t
   :components
   ((:file "src/layout")
+   (:file "src/layout-placement")
    (:file "src/focus")))
 
 (asdf:defsystem "cl-tui-kit/widgets"
@@ -46,6 +47,7 @@
                (:file "src/widgets-menus")
                (:file "src/widgets-tables")
                (:file "src/widgets-notifications")
+               (:file "src/application-data")
                (:file "src/application")
                (:file "src/application-events")
                (:file "src/application-runtime")
@@ -123,6 +125,8 @@
   :version "0.1.0"
   :license "MIT"
   :depends-on ("cl-tui-kit"
+               "cl-tui-kit/tty"
+               "cl-tui-kit/codec"
                "cl-host-kit"
                (:version "cl-weave" "1.3.0"))
   :serial t
@@ -140,6 +144,9 @@
    (:file "t/input-widget-tests")
    (:file "t/table-tests")
    (:file "t/support-tests")
+   (:file "t/list-tree-model-tests")
+   (:file "t/tty-tests")
+   (:file "t/codec-tests")
    (:file "t/notification-tests")
    (:file "t/tooling-tests")
    (:file "t/runner")))
