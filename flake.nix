@@ -17,7 +17,7 @@
       flake = false;
     };
 
-    # These adapters keep terminal-size and UTF-8 integration in optional ASDF
+    # These integrations keep terminal-size and UTF-8 support in optional ASDF
     # systems. Their transitive runtime dependencies are listed below as
     # source-only inputs so the packaged registry matches the ASDF graph.
     cl-tty-kit = {

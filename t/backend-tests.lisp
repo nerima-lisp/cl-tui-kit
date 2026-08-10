@@ -1,5 +1,11 @@
 (in-package #:cl-tui-kit/tests)
 
+(defclass failing-close-backend (backend) ())
+
+(defmethod backend-flush ((backend failing-close-backend))
+  (declare (ignore backend))
+  (error "expected backend flush failure"))
+
 (deftest backend-testing-diff-and-capabilities (:backend)
   (let* ((backend (make-test-backend
                    :size (make-size 6 2)
@@ -97,10 +103,27 @@
         (backend-write-clipboard backend "text")
       (is (not written-p))
       (is-equal :unsupported status))
-    (is (null (backend-capability backend :unknown)))
-    (is (signals-error (backend-set-capability backend :color 4)))
-    (is (signals-error
-         (backend-set-capability-state backend :clipboard :degraded)))))
+    (multiple-value-bind (requested-p status)
+        (backend-request-clipboard backend)
+      (is (not requested-p))
+      (is-equal :unsupported status))
+        (is (null (backend-capability backend :unknown)))
+        (is (signals-error
+             (backend-set-capability backend :unknown nil)))
+        (is (signals-error (backend-set-capability backend :color 4)))
+        (is (signals-error
+             (backend-set-capability-state backend :clipboard :degraded)))))
+
+(deftest backend-close-records-protocol-failure (:backend)
+  (let ((backend (make-instance 'failing-close-backend)))
+    (backend-open backend)
+    (let ((condition
+            (handler-case
+                (progn (backend-close backend) nil)
+              (condition (caught) caught))))
+      (is (typep condition 'condition))
+      (is-equal :failed (backend-state backend))
+      (is (eq condition (backend-last-error backend))))))
 
 (deftest backend-capability-copy-and-default-protocol (:backend)
   (let ((states (make-hash-table :test #'eq)))
@@ -332,3 +355,47 @@
     (is (null (ansi-backend-focus-reporting-enabled-p backend)))
     (is (null (ansi-backend-kitty-keyboard-flags backend)))
     (is (null (ansi-backend-synchronized-updates-enabled-p backend)))))
+
+(deftest ansi-terminal-mode-transitions-and-idempotence (:ansi)
+  (let* ((escape (code-char 27))
+         (stream (make-string-output-stream))
+         (backend (make-ansi-backend :stream stream)))
+    (backend-open backend)
+    (ansi-enable-mouse-reporting backend :mode :button-motion :sgr-p nil)
+    (ansi-enable-mouse-reporting backend :mode :any-motion)
+    (ansi-enable-mouse-reporting backend :mode :any-motion)
+    (ansi-enable-mouse-reporting backend :mode :any-motion :sgr-p nil)
+    (ansi-disable-mouse-reporting backend)
+    (ansi-disable-mouse-reporting backend)
+    (ansi-enable-bracketed-paste backend)
+    (ansi-enable-bracketed-paste backend)
+    (ansi-disable-bracketed-paste backend)
+    (ansi-disable-bracketed-paste backend)
+    (ansi-enable-focus-reporting backend)
+    (ansi-enable-focus-reporting backend)
+    (ansi-disable-focus-reporting backend)
+    (ansi-disable-focus-reporting backend)
+    (ansi-enable-kitty-keyboard backend :flags 7)
+    (ansi-enable-kitty-keyboard backend :flags 3)
+    (ansi-disable-kitty-keyboard backend)
+    (ansi-disable-kitty-keyboard backend)
+    (ansi-enable-synchronized-updates backend)
+    (ansi-enable-synchronized-updates backend)
+    (ansi-disable-synchronized-updates backend)
+    (ansi-disable-synchronized-updates backend)
+    (is (signals-error
+         (ansi-enable-mouse-reporting backend :mode :invalid)))
+    (is (signals-error
+         (ansi-enable-kitty-keyboard backend :flags 0)))
+    (let ((output (get-output-stream-string stream)))
+      (dolist (sequence '("[?1002h" "[?1002l" "[?1003h" "[?1003l"
+                          "[?1006h" "[?1006l" "[?2004h" "[?2004l"
+                          "[?1004h" "[?1004l" "[>7u" "[>3u" "[<u"))
+        (is (search (concatenate 'string (string escape) sequence) output))))
+    (is (null (ansi-backend-mouse-mode backend)))
+    (is (null (ansi-backend-mouse-sgr-p backend)))
+    (is (null (ansi-backend-bracketed-paste-enabled-p backend)))
+    (is (null (ansi-backend-focus-reporting-enabled-p backend)))
+    (is (null (ansi-backend-kitty-keyboard-flags backend)))
+    (is (null (ansi-backend-synchronized-updates-enabled-p backend)))
+    (backend-close backend)))

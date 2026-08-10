@@ -10,9 +10,13 @@
   ((:file "src/package")
    (:file "src/geometry")
    (:file "src/style")
+   (:file "src/text-width-data")
    (:file "src/text")
    (:file "src/surface")
    (:file "src/event")
+   (:file "src/input-parser-model")
+   (:file "src/input-parser-encoding")
+   (:file "src/input-parser-sequences")
    (:file "src/input-parser")
    (:file "src/keymap")
    (:file "src/backend")
@@ -48,7 +52,10 @@
                (:file "src/list")
                (:file "src/tree")
                (:file "src/input-editing")
+               (:file "src/input-textarea")
                (:file "src/input-composites")
+               (:file "src/input-choice-controls")
+               (:file "src/input-spinner")
                (:file "src/input-support")))
 
 (asdf:defsystem "cl-tui-kit/ansi"
@@ -61,7 +68,7 @@
   :components ((:file "src/ansi")))
 
 (asdf:defsystem "cl-tui-kit/tty"
-  :description "Optional terminal-size adapter using nerima-lisp's cl-tty-kit."
+  :description "Optional terminal-size protocol integration using nerima-lisp's cl-tty-kit."
   :author "takeokunn"
   :version "0.1.0"
   :license "MIT"
@@ -70,7 +77,7 @@
   :components ((:file "src/tty")))
 
 (asdf:defsystem "cl-tui-kit/codec"
-  :description "Optional UTF-8 adapter using nerima-lisp's cl-codec-kit."
+  :description "Optional UTF-8 codec integration using nerima-lisp's cl-codec-kit."
   :author "takeokunn"
   :version "0.1.0"
   :license "MIT"

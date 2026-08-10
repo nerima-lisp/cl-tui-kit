@@ -1,7 +1,7 @@
 (in-package #:cl-tui-kit/codec)
 
 ;;;; Optional integration with nerima-lisp's cl-codec-kit.  The core keeps
-;;;; text as Lisp strings and cell content; this adapter is only for a backend
+;;;; text as Lisp strings and cell content; this integration is only for a backend
 ;;;; or application that explicitly needs UTF-8 octets.
 
 (defun string-to-utf8-octets (string &key (start 0) end (errorp t))

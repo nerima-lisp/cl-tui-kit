@@ -173,17 +173,34 @@
                                   :rectangle (test-rectangle 4 0 3 1)))
          (third (make-focus-node :third :focusable-p t
                                  :rectangle (test-rectangle 9 0 3 1)))
+         (far-right (make-focus-node :far-right :focusable-p t
+                                     :rectangle (test-rectangle 20 0 3 1)))
+         (near-right (make-focus-node :near-right :focusable-p t
+                                      :rectangle (test-rectangle 12 1 3 1)))
          (modal-child (make-focus-node :modal-input :focusable-p t
                                        :rectangle (test-rectangle 2 2 3 1)))
          (modal (make-focus-node :modal :scope-p t
                                  :children (list modal-child)))
          (root (make-focus-node :root :scope-p t
-                                :children (list first second third modal)))
+                                :children (list first second third far-right
+                                                  near-right modal)))
          (tree (make-focus-tree root)))
     (is-equal :first (focus-node-id (focus-tree-current tree)))
     (is-equal :second (focus-node-id (focus-next tree)))
     (is-equal :first (focus-node-id (focus-directional tree :left)))
     (is-equal :second (focus-node-id (focus-directional tree :right)))
+    (focus-tree-set-current tree third)
+    (is-equal :near-right
+              (focus-node-id (focus-directional tree :right)))
+    (focus-tree-set-current tree second)
+    (is-equal :modal-input
+              (focus-node-id (focus-directional tree :down)))
+    (is-equal :first
+              (focus-node-id (focus-directional tree :up)))
+    (focus-tree-set-current tree second)
+    (is (signals-error
+         (focus-push-modal tree
+                           (make-focus-node :outsider :scope-p t))))
     (focus-push-modal tree modal)
     (is-equal :modal-input (focus-node-id (focus-tree-current tree)))
     (is (focus-visible-p tree modal-child))
@@ -192,15 +209,23 @@
               (focus-node-id (focus-directional tree :right)))
     (focus-pop-modal tree)
     (is-equal :second (focus-node-id (focus-tree-current tree)))
-    (is (not (focus-visible-p tree modal-child)))))
+    (is (not (focus-visible-p tree modal-child))))
+  (let* ((fallback-child (make-focus-node :fallback-child :focusable-p t))
+         (fallback-root (make-focus-node :fallback-root :scope-p t
+                                         :children (list fallback-child)))
+         (fallback-tree (make-focus-tree fallback-root)))
+    (setf (focus-tree-current fallback-tree) nil)
+    (focus-push-modal fallback-tree fallback-root)
+    (focus-restore fallback-tree)
+    (is-equal :fallback-child
+              (focus-node-id (focus-tree-current fallback-tree)))))
 
 (deftest focus-node-print-object-handles-parent-child-cycle (:focus)
   (let* ((child (make-focus-node :child :focusable-p t))
          (root (make-focus-node :root :scope-p t
                                 :children (list child)))
-         (root-printed (format nil "~A" root))
-         (child-printed (with-output-to-string (stream)
-                          (print child stream))))
+         (root-printed (princ-to-string root))
+         (child-printed (write-to-string child)))
     (is (focus-node-parent child))
     (is (focus-node-children root))
     (is (stringp root-printed))
@@ -247,6 +272,91 @@
                                 :key-at #'identity
                                 :label-at #'identity)))
     (is (signals-error (tree-model-root-count model)))))
+
+(deftest tree-model-and-navigation-edge-contracts (:tree-model)
+  (is (signals-error
+       (make-tree-model :root-count :invalid
+                        :root-at #'identity
+                        :key-at #'identity
+                        :label-at #'identity)))
+  (is (signals-error
+       (make-tree-model :root-count 0)))
+  (is (signals-error
+       (make-tree-model :root-count 0
+                        :root-at #'identity)))
+  (is (signals-error
+       (make-tree-model :root-count 0
+                        :root-at #'identity
+                        :key-at #'identity)))
+  (let* ((roots #(:a :b :c))
+         (model (make-tree-model
+                 :root-count 3
+                 :root-at (lambda (index) (aref roots index))
+                 :key-at #'identity
+                 :label-at #'symbol-name
+                 :children (lambda (node)
+                             (case node
+                               (:a #(:a-child :a-second))
+                               (:b :opaque)
+                               (otherwise nil)))
+                 :expanded-p (lambda (node)
+                               (member node '(:a :b)))
+                 :render-item (lambda (node)
+                                (format nil "render-~A" node))))
+         (widget (make-tree-widget
+                  model
+                  :rectangle (test-rectangle 0 0 20 2)
+                  :selected-key :a)))
+    (is-equal :opaque (tree-model-children model :b))
+    (is-equal "render-A" (tree-model-render-item model :a))
+    (is-equal 0 (tree-widget-selected-index widget))
+    (tree-widget-page-down widget)
+    (is-equal 2 (tree-widget-selected-index widget))
+    (is-equal :move
+              (action-name (widget-handle-event widget
+                                                (test-key :up))))
+    (is-equal :move
+              (action-name (widget-handle-event widget
+                                                (test-key :down))))
+    (is-equal :move
+              (action-name (widget-handle-event widget
+                                                (test-key :page-up))))
+    (is-equal :move
+              (action-name (widget-handle-event widget
+                                                (test-key :page-down))))
+    (is-equal :move
+              (action-name (widget-handle-event widget
+                                                (test-key :home))))
+    (is-equal :move
+              (action-name (widget-handle-event widget
+                                                (test-key :end))))
+    (is-equal :collapse
+              (action-name (widget-handle-event widget
+                                                (test-key :left))))
+    (is-equal :expand
+              (action-name (widget-handle-event widget
+                                                (test-key :right))))
+    (is-equal :toggle
+              (action-name (widget-handle-event widget
+                                                (test-key :space))))
+    (is-equal :activate
+              (action-name (widget-handle-event widget
+                                                (test-key :enter))))
+    (tree-widget-refresh widget)
+    (is (plusp (tree-widget-selected-index widget))))
+  (let* ((empty-model (make-tree-model
+                       :root-count 0
+                       :root-at (lambda (index) (declare (ignore index)) nil)
+                       :key-at #'identity
+                       :label-at #'identity))
+         (empty (make-tree-widget empty-model
+                                  :selected-key :missing)))
+    (is (null (tree-widget-selected-index empty)))
+    (is (eq empty (tree-widget-page-up empty)))
+    (is (eq empty (tree-widget-page-down empty)))
+    (is (null (widget-handle-event empty (test-key :down))))
+    (tree-widget-refresh empty)
+    (is (null (tree-widget-selected-key empty)))))
 
 (deftest ansi-color-capability-fallback (:ansi)
   (let ((style (make-style :foreground (rgb-color 255 100 10)

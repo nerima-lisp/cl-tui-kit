@@ -2,12 +2,25 @@
 
 ;;;; Application lifecycle
 
-(defun application-step (application &optional event)
+(defun application-step/k (application event continuation)
+  "Dispatch EVENT, render when dirty, and continue with the last action.
+
+CONTINUATION receives the action recorded by the application.  EVENT may be
+NIL when the caller only wants to flush a dirty frame."
+  (check-type application application)
+  (check-type continuation function)
   (when event
     (application-dispatch-event application event))
-  (when (application-dirty-p application)
-    (application-render application))
-  (application-last-action application))
+  (if (application-dirty-p application)
+      (application-render/k
+       application
+       (lambda (rendered-application)
+         (declare (ignore rendered-application))
+         (funcall continuation (application-last-action application))))
+      (funcall continuation (application-last-action application))))
+
+(defun application-step (application &optional event)
+  (application-step/k application event #'identity))
 
 (defun application-start (application)
   (unless (application-running-p application)

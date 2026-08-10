@@ -181,6 +181,24 @@
     (is-equal :fallback
               (action-name
                (keymap-result-action
-                (dispatch-keymaps (list specific fallback)
+               (dispatch-keymaps (list specific fallback)
                                   state
                                   (test-key #\q)))))))
+
+(deftest keymap-unhandled-retry-and-named-variants (:keymap)
+  (let* ((keymap (make-keymap))
+         (state (make-keymap-state)))
+    (bind-key keymap (list #\g #\g) (custom-action :double))
+    (is-equal :prefix
+              (keymap-result-status
+               (keymap-dispatch keymap state (test-key #\g))))
+    (is-equal :unhandled
+              (keymap-result-status
+               (keymap-dispatch keymap state (test-key #\x))))
+    (is (not (keymap-state-prefix-active-p state)))
+    (is-equal :unhandled
+              (keymap-result-status
+               (dispatch-keymaps (list (make-keymap) (make-keymap))
+                                 state
+                                 (test-key #\x)))))
+  (is-equal :named (keymap-name (vi-like-keymap :name :named))))

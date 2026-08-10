@@ -200,8 +200,9 @@
    #:application-last-action #:application-alternate-screen-p
    #:application-title #:make-widget-focus-tree
    #:application-refresh-focus-tree #:application-layout
-   #:application-invalidate #:application-render #:widget-hit-test
-   #:dispatch-widget-event #:application-dispatch-event #:application-step
+   #:application-invalidate #:application-render/k #:application-render
+   #:widget-hit-test #:dispatch-widget-event #:application-dispatch-event
+   #:application-step/k #:application-step
    #:application-start #:application-stop #:application-close
    #:call-with-application-session #:with-application-session
    #:application-run

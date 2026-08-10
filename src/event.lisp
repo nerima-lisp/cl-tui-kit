@@ -18,8 +18,9 @@
          :alt)
         ((string-equal modifier "shift") :shift)
         ((string-equal modifier "super") :super)
+        ((string-equal modifier "hyper") :hyper)
         (t
-         (error "Unsupported modifier designator ~S. Use a keyword or CONTROL, CTRL, META, ALT, SHIFT, or SUPER."
+         (error "Unsupported modifier designator ~S. Use a keyword or CONTROL, CTRL, META, ALT, SHIFT, SUPER, or HYPER."
                 modifier)))))
 
 (defun normalize-modifiers (modifiers)
@@ -31,7 +32,7 @@
            :test #'eq)))
     (sort normalized #'<
           :key (lambda (modifier)
-                 (or (position modifier '(:ctrl :alt :shift :super)
+                 (or (position modifier '(:ctrl :alt :shift :super :hyper)
                                       :test #'eq)
                      99)))))
 

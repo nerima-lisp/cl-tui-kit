@@ -128,6 +128,32 @@
                'scroll-bar-widget))))
 
 (deftest list-and-tree-model-events (:widgets)
+  (let ((default-model
+          (make-list-model
+           :count 1
+           :item-at (lambda (index)
+                      (declare (ignore index))
+                      "default"))))
+    (is (signals-error
+         (make-list-model :count :invalid
+                          :item-at (lambda (index)
+                                     (declare (ignore index))
+                                     index))))
+    (is (signals-error (make-list-model :count 0 :item-at nil)))
+    (is-equal "default"
+              (list-model-key-at default-model "default" 0))
+    (is-equal "default"
+              (list-model-label-at default-model "default" 0))
+    (is-equal "default"
+              (list-model-render-item default-model "default" 0))
+    (let ((widget (make-list-widget default-model)))
+      (is-equal 0 (rectangle-width (widget-rectangle widget)))
+      (is-equal 0 (rectangle-height (widget-rectangle widget)))
+      (is-equal 0 (list-widget-offset widget))
+      (is-equal 1 (list-widget-row-height widget))
+      (is-equal 7 (size-width (widget-preferred-size widget)))
+      (is-equal 10 (size-height (widget-preferred-size widget))))
+    (is (signals-error (make-list-widget default-model :row-height 0))))
   (let* ((items (vector "a" "b" "c" "d"))
          (model (make-list-model
                  :count (lambda () (length items))
@@ -158,6 +184,10 @@
     (is-equal :move
               (action-name (handle-widget-event widget (make-key-event :down))))
     (is-equal "b" (list-widget-selected-key widget))
+    (let ((action (handle-widget-event widget (make-key-event :up))))
+      (is-equal :move (action-name action))
+      (is-equal '(:direction :up :amount 1) (action-payload action)))
+    (is-equal "a" (list-widget-selected-key widget))
     (handle-widget-event widget (make-key-event :end))
     (is-equal "d" (list-widget-selected-key widget))
     (handle-widget-event widget (make-key-event :page-up))

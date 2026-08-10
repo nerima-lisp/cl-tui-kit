@@ -94,8 +94,25 @@
     (let ((action (application-dispatch-event application
                                                (make-tick-event 4))))
       (is-equal :notifications-updated (action-name action))
-      (is-equal action (application-last-action application)))
+    (is-equal action (application-last-action application)))
     (is (null (notification-center-notifications center)))))
+
+(deftest application-run-accepts-explicit-eof-value (:application)
+  (let* ((backend (make-test-backend :size (make-size 8 2)))
+         (input (make-input-widget :id :input))
+         (application (make-application
+                       :backend backend
+                       :root (make-widget :children (list input))
+                       :alternate-screen-p nil))
+         (events (list (make-text-input-event "z") :stop)))
+    (is (eq application
+            (application-run application
+                             (lambda () (pop events))
+                             :eof-value :stop)))
+    (is-equal "z" (input-widget-value input))
+    (is (not (application-running-p application)))
+    (is (member '(:open) (test-backend-operations backend) :test #'equal))
+    (is (member '(:close) (test-backend-operations backend) :test #'equal))))
 
 (deftest common-widgets-and-horizontal-input (:widgets)
   (let* ((surface (make-surface 12 2))
@@ -296,3 +313,64 @@
     (is (search "ab" (surface-string surface)))
     (is-equal :document
               (getf (widget-accessibility-tree wrapped) :role))))
+
+(deftest text-view-edge-navigation-and-rendering (:widgets)
+  (let* ((view (make-text-view-widget
+                (format nil "one~%two~%three")
+                :wrap-p nil
+                :offset -4
+                :semantic-role :log
+                :rectangle (test-rectangle 0 0 4 2)))
+         (surface (make-surface 4 2)))
+    (is-equal 0 (text-view-widget-offset view))
+    (is-equal 5 (size-width (widget-preferred-size view)))
+    (is-equal 3 (size-height (widget-preferred-size view)))
+    (is-equal 8 (text-view-widget-find view "THREE"))
+    (is-equal 1 (text-view-widget-offset view))
+    (is (null (text-view-widget-find view "three" 99)))
+    (is (null (text-view-widget-find view "")))
+    (text-view-widget-scroll-to view 1)
+    (widget-render view surface)
+    (is (search "two" (surface-string surface)))
+    (is (search "thre" (surface-string surface)))
+    (is-equal :move
+              (action-name (widget-handle-event view (make-key-event :k-up))))
+    (is-equal 0 (text-view-widget-offset view))
+    (is-equal :move
+              (action-name (widget-handle-event view (make-key-event :k-down))))
+    (is-equal :move
+              (action-name (widget-handle-event view (make-key-event :page-up))))
+    (is-equal :move
+              (action-name (widget-handle-event view (make-key-event :page-down))))
+    (is-equal :move
+              (action-name (widget-handle-event view (make-key-event :home))))
+    (is-equal :move
+              (action-name (widget-handle-event view (make-key-event :end))))
+    (is-equal :move
+              (action-name
+               (widget-handle-event view
+                                    (make-mouse-event 0 0 :button :scroll-up))))
+    (is (null (widget-handle-event
+               view (make-mouse-event 0 0 :kind :release :button :scroll-down))))
+    (is (null (widget-handle-event
+               view (make-mouse-event 4 0 :button :wheel-down))))
+    (is-equal :find
+              (action-name (widget-handle-event view (make-custom-event :find nil))))
+    (is (null (widget-handle-event view (make-custom-event :other))))
+    (let ((info (widget-accessibility-tree view)))
+      (is-equal :log (getf info :role))
+      (is-equal 3 (getf (getf info :state) :line-count))))
+  (let* ((wrapped (make-text-view-widget
+                   (format nil "a~Cbc" #\Tab)
+                   :rectangle (test-rectangle 0 0 4 3)))
+         (empty (make-text-view-widget ""
+                                       :rectangle (test-rectangle 0 0 1 1)))
+         (surface (make-surface 4 3)))
+    (is-equal 10 (size-width (widget-preferred-size wrapped)))
+    (is-equal 1 (size-height (widget-preferred-size wrapped)))
+    (widget-render wrapped surface)
+    (is (search "a" (surface-string surface)))
+    (is (search "bc" (surface-string surface)))
+    (widget-render empty (make-surface 1 1))
+    (is-equal 1 (size-width (widget-preferred-size empty)))
+    (is-equal 1 (size-height (widget-preferred-size empty)))))

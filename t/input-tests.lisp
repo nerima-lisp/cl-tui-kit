@@ -9,12 +9,14 @@
                                :modifiers '("control" "meta" "shift" "super"))))
     (is-equal '(:ctrl :alt :shift :super)
               (key-event-modifiers event)))
+  (let ((event (make-key-event :x :modifiers '("hyper"))))
+    (is-equal '(:hyper) (key-event-modifiers event)))
   (let ((event (make-custom-event :refresh '(:source :test))))
     (is-equal :custom (event-kind event))
     (is-equal :refresh (custom-event-name event))
     (is-equal :resize (event-kind (make-resize-event 80 24)))
     (is (signals-error
-         (make-key-event :enter :modifiers '("hyper"))))))
+         (make-key-event :enter :modifiers '("unsupported"))))))
 
 (deftest event-families-and-action-contracts (:events)
   (let* ((paste (make-paste-event "pasted"))
@@ -69,7 +71,7 @@
     (is (not (terminal-input-parser-pending-p parser))))
   (let* ((parser (make-terminal-input-parser))
          (escape (code-char 27))
-         (backslash (code-char 92)))
+         (backslash #\\))
     (is (null (terminal-input-parser-feed
                parser (format nil "~C]52;p;5pel5pys~C" escape escape))))
     (let ((events (terminal-input-parser-feed parser (string backslash))))
@@ -89,14 +91,31 @@
                                         escape (code-char 7))))))
       (is-equal :terminal-sequence (custom-event-name event))
       (is-equal :invalid-base64
-                (getf (custom-event-payload event) :error))))
+                (getf (custom-event-payload event) :error)))
+    (dolist (encoded '("A" "Zg=A" "Zm9=" "Zg==AA=="))
+      (let ((event (first (terminal-input-parser-feed
+                           parser (format nil "~C]52;c;~A~C"
+                                          escape encoded (code-char 7))))))
+        (is-equal :terminal-sequence (custom-event-name event))
+        (is-equal :invalid-base64
+                  (getf (custom-event-payload event) :error)))))
   (let* ((parser (make-terminal-input-parser))
          (escape (code-char 27)))
     (let ((event (first (terminal-input-parser-feed
                          parser (format nil "~C]0;title~C"
                                         escape (code-char 7))))))
       (is-equal :terminal-sequence (custom-event-name event))
-      (is-equal :osc (getf (custom-event-payload event) :protocol)))))
+      (is-equal :osc (getf (custom-event-payload event) :protocol)))
+    (let ((events (terminal-input-parser-feed
+                   parser (concatenate 'string
+                                       (format nil "~C]0;title~C"
+                                               escape (code-char 7))
+                                       "ignored"
+                                       (string escape)
+                                       (string #\\)))))
+      (is-equal :terminal-sequence (custom-event-name (first events)))
+      (is-equal "0;title"
+                (getf (custom-event-payload (first events)) :payload)))))
 
 (deftest terminal-input-parser-incremental-and-structured-events (:input-parser)
   (let* ((parser (make-terminal-input-parser))
@@ -140,6 +159,14 @@
                   (format nil "~C[123" escape))))
     (is-equal 1 (length events))
     (is-equal :input-overflow (custom-event-name (first events))))
+  (dolist (sequence (list (format nil "~C]abc" (code-char 27))
+                          (format nil "~C[M12" (code-char 27))
+                          (format nil "~C[12" (code-char 27))))
+    (let ((events (terminal-input-parser-feed
+                   (make-terminal-input-parser :max-sequence-length 3)
+                   sequence)))
+      (is-equal 1 (length events))
+      (is-equal :input-overflow (custom-event-name (first events)))))
   (let ((parser (make-terminal-input-parser)))
     (terminal-input-parser-feed parser (string (code-char 27)))
     (let ((events (terminal-input-parser-flush parser)))
@@ -563,6 +590,23 @@
       (is-equal '(:ctrl) (key-event-modifiers event))
       (is-equal :press (key-event-phase event)))
     (let ((event (first (terminal-input-parser-feed
+                         parser (format nil "~C[97;49u" escape)))))
+      (is-equal #\a (key-event-key event))
+      (is-equal '(:alt :hyper) (key-event-modifiers event)))
+    (dolist (case '((9 :tab) (8 :backspace) (127 :backspace)
+                    (10 :enter) (13 :enter) (27 :escape)))
+      (destructuring-bind (codepoint key) case
+        (let ((event (first (terminal-input-parser-feed
+                             parser (format nil "~C[~Du" escape codepoint)))))
+          (is-equal key (key-event-key event)))))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (format nil "~C[97;64u" escape)))))
+      (is-equal '(:ctrl :alt :shift :super :hyper)
+                (key-event-modifiers event)))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (format nil "~C[97;1:4u" escape)))))
+      (is-equal :terminal-sequence (custom-event-name event)))
+    (let ((event (first (terminal-input-parser-feed
                          parser (format nil "~C[97;1:2u" escape)))))
       (is-equal #\a (key-event-key event))
       (is-equal :repeat (key-event-phase event)))
@@ -593,4 +637,59 @@
                                                (list 100 34 34))))))))
       (is-equal :scroll-up (mouse-event-kind event))
       (is-equal :wheel (mouse-event-button event))
-      (is-equal '(:shift) (mouse-event-modifiers event)))))
+      (is-equal '(:shift) (mouse-event-modifiers event)))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (concatenate
+                                 'string
+                                 (format nil "~C[M" escape)
+                                 (string (map 'string #'code-char
+                                               (list 56 34 34))))))))
+      (is-equal :left (mouse-event-button event))
+      (is-equal :press (mouse-event-kind event))
+      (is-equal '(:ctrl :alt) (mouse-event-modifiers event)))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (concatenate
+                                 'string
+                                 (format nil "~C[M" escape)
+                                 (string (map 'string #'code-char
+                                               (list 64 34 35))))))))
+      (is-equal :move (mouse-event-kind event))
+      (is-equal :left (mouse-event-button event))
+      (is-equal 1 (mouse-event-x event))
+      (is-equal 2 (mouse-event-y event)))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (concatenate
+                                 'string
+                                 (format nil "~C[M" escape)
+                                 (string (map 'string #'code-char
+                                               (list 35 34 35))))))))
+      (is-equal :release (mouse-event-kind event))
+      (is-equal :unknown (mouse-event-button event)))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (concatenate
+                                 'string
+                                 (format nil "~C[M" escape)
+                                 (string (map 'string #'code-char
+                                               (list 32 32 32))))))))
+      (is-equal 0 (mouse-event-x event))
+      (is-equal 0 (mouse-event-y event)))
+    (let ((event (first (terminal-input-parser-feed
+                         parser (concatenate
+                                 'string
+                                 (format nil "~C[M" escape)
+                                 (string (map 'string #'code-char
+                                               (list 31 33 34))))))))
+      (is-equal :terminal-sequence (custom-event-name event)))))
+
+(cl-weave:it-fuzz "terminal input parser accepts generated bounded text"
+  ((input (cl-weave:gen-string
+           :min-length 0
+           :max-length 48
+           :alphabet (concatenate 'string
+                                  "abc[];?~"
+                                  (string (code-char 27))
+                                  (string (code-char 7))))))
+  (:trials 120 :timeout-per-trial 2)
+  (let ((parser (make-terminal-input-parser :max-sequence-length 64)))
+    (is (listp (terminal-input-parser-feed parser input)))
+    (is (listp (terminal-input-parser-flush parser)))))

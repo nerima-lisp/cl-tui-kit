@@ -98,14 +98,16 @@
 (defun text-view-widget-find (widget query &optional (start 0))
   (check-type widget text-view-widget)
   (check-type query string)
+  (check-type start integer)
   (setf (text-view-widget-search-query widget) query)
   (when (plusp (length query))
-    (let ((position (search query (text-view-widget-text widget)
-                            :start2 (max 0 start) :test #'char-equal)))
+    (let* ((text (text-view-widget-text widget))
+           (start (min (length text) (max 0 start)))
+           (position (search query text :start2 start :test #'char-equal)))
       (when position
         (text-view-widget-scroll-to
          widget
-         (count #\Newline (subseq (text-view-widget-text widget) 0 position)))
+         (count #\Newline (subseq text 0 position)))
         position))))
 
 (defmethod widget-accessibility-info ((widget text-view-widget))
@@ -156,6 +158,9 @@
        (move-action :end 1 widget))
       ((and (typep event 'mouse-event)
             (eq (mouse-event-kind event) :press)
+            (rectangle-contains-point-p
+             (widget-rectangle widget)
+             (make-point (mouse-event-x event) (mouse-event-y event)))
             (member (mouse-event-button event)
                     '(:wheel-up :scroll-up :wheel-down :scroll-down)
                     :test #'eq))

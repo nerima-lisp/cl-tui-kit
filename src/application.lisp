@@ -102,7 +102,15 @@
   (setf (application-dirty-p application) t)
   application)
 
-(defun application-render (application)
+(defun application-render/k (application continuation)
+  "Render APPLICATION, then invoke CONTINUATION with APPLICATION.
+
+The continuation runs after the frame has been flushed and the application
+has been marked clean.  Keeping this boundary explicit lets a caller compose
+rendering with another CPS operation without introducing an event-loop
+wrapper."
+  (check-type application application)
+  (check-type continuation function)
   (application-layout application)
   (let ((backend (application-backend application))
         (surface (application-surface application)))
@@ -120,8 +128,11 @@
      (lambda (presented-surface)
        (declare (ignore presented-surface))
        (surface-mark-clean surface)
-       (setf (application-dirty-p application) nil))))
-  application)
+       (setf (application-dirty-p application) nil)
+       (funcall continuation application)))))
+
+(defun application-render (application)
+  (application-render/k application #'identity))
 
 (defun widget-hit-test (widget x y)
   (when (and (widget-active-p widget)

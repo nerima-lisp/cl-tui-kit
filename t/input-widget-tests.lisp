@@ -45,6 +45,33 @@
     (widget-handle-event input (test-key :left))
     (is-equal 2 (input-widget-cursor input))))
 
+(deftest input-paste-history-and-key-actions (:widgets)
+  (is (signals-error (make-input-widget :max-history 0)))
+  (let ((input (make-input-widget
+                :value "ab"
+                :max-history 1
+                :rectangle (make-rectangle 0 0 8 1))))
+    (widget-handle-event input (make-paste-event "CD"))
+    (is-equal "abCD" (input-widget-value input))
+    (widget-handle-event input (make-paste-event ""))
+    (is-equal "abCD" (input-widget-value input))
+    (widget-handle-event input (test-key :z :ctrl))
+    (is-equal "ab" (input-widget-value input))
+    (widget-handle-event input (test-key :z :ctrl))
+    (is-equal "ab" (input-widget-value input))
+    (widget-handle-event input (test-key :y :ctrl))
+    (is-equal "abCD" (input-widget-value input))
+    (widget-handle-event input (make-text-input-event "E"))
+    (widget-handle-event input (test-key :z :ctrl))
+    (is-equal "abCD" (input-widget-value input))
+    (widget-handle-event input (test-key :z :ctrl :shift))
+    (is-equal "abCDE" (input-widget-value input)))
+  (let ((input (make-input-widget :value "value")))
+    (is-equal :submit
+              (action-name (widget-handle-event input (test-key :enter))))
+    (is-equal :cancel
+              (action-name (widget-handle-event input (test-key :escape))))))
+
 (deftest composite-form-and-modal-lifecycle (:composite-widgets)
   (let* ((name (make-input-widget :id :name :value "Ada"))
          (agree (make-checkbox-widget "Agree" :id :agree))
@@ -375,3 +402,240 @@
     (is-equal "Busy" (getf info :label))
     (is-equal "Working" (getf info :description))
     (is (not (getf info :focusable-p)))))
+
+(deftest spinner-protocol-and-invalid-inputs (:widgets)
+  (is (signals-error (make-spinner-widget :frames nil)))
+  (is (signals-error (make-spinner-widget :frames '("-") :index 1)))
+  (is (signals-error (make-spinner-widget :frames '("-") :running-p :yes)))
+  (is-equal '("-" "/" "|" "\\")
+            (spinner-widget-frames (make-spinner-widget)))
+  (let ((spinner (make-spinner-widget)))
+    (setf (widget-role spinner) nil
+          (widget-label spinner) nil)
+    (let ((info (widget-accessibility-info spinner)))
+      (is-equal :status (getf info :role))
+      (is-equal "Progress" (getf info :label))))
+  (let ((spinner (make-spinner-widget :action (make-action :custom :payload))))
+    (is-equal :custom
+              (action-name (spinner-widget-toggle spinner))))
+  (let* ((spinner (make-spinner-widget :frames '("aa" "b")
+                                       :index 1
+                                       :running-p nil
+                                       :rectangle (test-rectangle 0 0 2 1)))
+         (surface (make-surface 2 1)))
+    (is-equal 2 (size-width (widget-preferred-size spinner)))
+    (is-equal 1 (size-height (widget-preferred-size spinner)))
+    (spinner-widget-tick spinner)
+    (is-equal 1 (spinner-widget-index spinner))
+    (is-equal :toggle
+              (action-name
+               (widget-handle-event spinner (make-key-event :space))))
+    (is-equal :toggle
+              (action-name
+               (widget-handle-event spinner (make-mouse-event 0 0))))
+    (widget-render spinner surface)
+    (is (search "b" (surface-string surface)))
+    (is (null (widget-handle-event spinner (make-key-event :escape)))))
+  (let ((spinner (make-spinner-widget
+                  :action (lambda (widget)
+                            (make-action :callback widget)))))
+    (is-equal :callback
+              (action-name (spinner-widget-toggle spinner)))))
+
+(deftest choice-and-textarea-boundaries (:widgets)
+  (let ((empty-radio (make-radio-widget nil))
+        (empty-select (make-select-widget nil)))
+    (is (null (radio-widget-selected-option empty-radio)))
+    (is (null (select-widget-selected-option empty-select)))
+    (is (null (widget-handle-event empty-radio (test-key :down))))
+    (is (null (widget-handle-event empty-select (test-key :down))))
+    (is (signals-error (radio-widget-select
+                        (make-radio-widget '("A")) 1)))
+    (is (signals-error (select-widget-select
+                        (make-select-widget '("A")) -1))))
+  (let ((radio (make-radio-widget '("A" "B") :selected-index 0
+                                  :wrap-p nil))
+        (wrapped (make-radio-widget '("A" "B") :selected-index 0
+                                    :wrap-p t)))
+    (widget-handle-event radio (test-key :up))
+    (is-equal 0 (radio-widget-selected-index radio))
+    (widget-handle-event wrapped (test-key :up))
+    (is-equal 1 (radio-widget-selected-index wrapped)))
+  (let ((select (make-select-widget '("A" "B") :selected-index 0
+                                    :open-p t
+                                    :rectangle (test-rectangle 0 0 6 2))))
+    (is-equal :close
+              (action-name (widget-handle-event select (test-key :escape))))
+    (is (not (select-widget-open-p select)))
+    (is (null (widget-handle-event
+               select (make-mouse-event 20 20 :kind :press)))))
+  (let ((textarea (make-textarea-widget
+                   :value (format nil "ab~%cdef~%gh")
+                   :soft-wrap-p nil
+                   :rectangle (test-rectangle 0 0 4 2))))
+    (widget-handle-event textarea (test-key :home))
+    (widget-handle-event textarea (test-key :down))
+    (is (plusp (input-widget-cursor textarea)))
+    (widget-handle-event textarea (test-key :page-down))
+    (widget-handle-event textarea (test-key :page-up :shift))
+    (is (and (input-widget-selection-start textarea)
+             (input-widget-selection-end textarea)))
+    (is (widget-cursor-position textarea)))
+  (let ((textarea (make-textarea-widget :value "ready"
+                                         :submit-on-enter-p t)))
+    (is-equal :submit
+              (action-name (widget-handle-event textarea (test-key :enter)))))
+  (let* ((radio (make-radio-widget '("A" "Longer")))
+         (select (make-select-widget '("A" "Longer")
+                                     :visible-rows 1))
+         (textarea (make-textarea-widget
+                    :value (format nil "a~%hello")
+                    :preferred-rows 3)))
+    (is-equal 10 (size-width (widget-preferred-size radio)))
+    (is-equal 2 (size-height (widget-preferred-size radio)))
+    (is-equal 10 (size-width (widget-preferred-size select)))
+    (is-equal 1 (size-height (widget-preferred-size select)))
+    (is-equal 5 (size-width (widget-preferred-size textarea)))
+    (is-equal 3 (size-height (widget-preferred-size textarea)))
+    (setf (widget-role radio) nil
+          (widget-label radio) nil
+          (widget-role select) nil
+          (widget-label select) nil)
+    (let ((radio-info (widget-accessibility-info radio))
+          (select-info (widget-accessibility-info select)))
+      (is-equal :radiogroup (getf radio-info :role))
+      (is-equal "Radio group" (getf radio-info :label))
+      (is-equal :combobox (getf select-info :role))
+      (is-equal "Select" (getf select-info :label))))
+  (let ((textarea (make-textarea-widget
+                   :value "abcdef"
+                   :soft-wrap-p t
+                   :rectangle (test-rectangle 0 0 3 2)))
+        (surface (make-surface 3 2)))
+    (widget-handle-event textarea (test-key :home))
+    (widget-handle-event textarea (test-key :right))
+    (widget-handle-event textarea (test-key :up))
+    (widget-handle-event textarea (test-key :down))
+    (widget-handle-event textarea (test-key :page-up))
+    (widget-handle-event textarea (test-key :page-down))
+    (widget-handle-event textarea (test-key :left :shift))
+    (is (input-widget-selection-start textarea))
+    (is (input-widget-selection-end textarea))
+    (widget-render textarea surface)
+    (is (search "abc" (surface-string surface)))
+    (is (widget-cursor-position textarea)))
+  (let* ((radio (make-radio-widget '("A" "B")))
+         (select (make-select-widget '("A" "B")))
+         (radio-surface (make-surface 20 2))
+         (select-surface (make-surface 20 2)))
+    (is-equal 0 (radio-widget-selected-index radio))
+    (is-equal 0 (select-widget-selected-index select))
+    (is-equal :select
+              (action-name (widget-handle-event radio (test-key :enter))))
+    (is-equal :open
+              (action-name (widget-handle-event select (test-key :space))))
+    (is (select-widget-open-p select))
+    (is (widget-handle-event
+         radio (make-mouse-event 0 1 :kind :press)))
+    (is-equal 1 (radio-widget-selected-index radio))
+    (is (null (widget-handle-event
+               radio (make-mouse-event 0 2 :kind :press))))
+    (widget-render radio radio-surface)
+    (widget-render select select-surface)
+    (is (search "A" (surface-string radio-surface)))
+    (is (search "A" (surface-string select-surface)))))
+
+(deftest textarea-segment-and-control-contracts (:widgets)
+  (let ((segments (list (cons 0 2) (cons 2 4))))
+    (let ((segment (cl-tui-kit/widgets::%textarea-segment-at-cursor
+                    segments 1)))
+      (is-equal 0 (car segment))
+      (is-equal 2 (cdr segment)))
+    (is-equal (second segments)
+              (cl-tui-kit/widgets::%textarea-segment-at-cursor
+               segments 2))
+    (is-equal (second segments)
+              (cl-tui-kit/widgets::%textarea-segment-at-cursor
+               segments 4))
+    (is-equal (second segments)
+              (cl-tui-kit/widgets::%textarea-segment-at-cursor
+               segments 9))
+    (is-equal 1
+              (cl-tui-kit/widgets::%textarea-segment-index
+               segments (second segments)))
+    (is-equal 0
+              (cl-tui-kit/widgets::%textarea-segment-index
+               segments (cons 2 4)))
+    (is-equal 0
+              (cl-tui-kit/widgets::%textarea-segment-index '() nil)))
+  (let* ((value (format nil "ab~%cd"))
+         (textarea (make-textarea-widget :value value)))
+    (widget-handle-event textarea (test-key :home :ctrl))
+    (is-equal 0 (input-widget-cursor textarea))
+    (widget-handle-event textarea (test-key :end :ctrl))
+    (is-equal (length value) (input-widget-cursor textarea))))
+
+(cl-weave:it-property "indexed controls keep movement inside their options"
+  ((index (cl-weave:gen-integer :min 0 :max 4))
+   (delta (cl-weave:gen-integer :min -12 :max 12)))
+  (let ((radio (make-radio-widget '("A" "B" "C" "D" "E")
+                                  :selected-index index
+                                  :wrap-p nil))
+        (select (make-select-widget '("A" "B" "C" "D" "E")
+                                    :selected-index index)))
+    (cl-tui-kit/widgets::%radio-move radio delta)
+    (cl-tui-kit/widgets::%select-move select delta)
+    (is (<= 0 (radio-widget-selected-index radio) 4))
+    (is (<= 0 (select-widget-selected-index select) 4))))
+
+(cl-weave:it-property "spinner transitions preserve a generated frame cycle"
+  ((frames (cl-weave:gen-list
+            (cl-weave:gen-member '("." "o" "O"))
+            :min-length 1 :max-length 6))
+   (running-p (cl-weave:gen-boolean)))
+  (let* ((spinner (make-spinner-widget :frames frames :running-p running-p))
+         (expected-index (if running-p (mod 1 (length frames)) 0)))
+    (spinner-widget-tick spinner)
+    (is-equal (nth expected-index frames) (spinner-widget-current-frame spinner))
+    (let ((before (spinner-widget-running-p spinner)))
+      (spinner-widget-toggle spinner)
+      (spinner-widget-toggle spinner)
+      (is-equal before (spinner-widget-running-p spinner)))))
+
+(cl-weave:it-property "spinner follows generated event traces"
+  ((trace
+    (cl-weave:gen-state-machine
+     (list 0 t)
+     (lambda (state event)
+       (destructuring-bind (index running-p) state
+         (case event
+           (:tick (list (if running-p (mod (1+ index) 3) index)
+                        running-p))
+           (:toggle (list index (not running-p))))))
+     (cl-weave:gen-one-of
+      (cl-weave:gen-member '(:tick :toggle)))
+     :min-length 1
+     :max-length 12)))
+  (let ((spinner (make-spinner-widget :frames '("." "o" "O"))))
+    (dolist (event (getf trace :events))
+      (case event
+        (:tick (spinner-widget-tick spinner))
+        (:toggle (spinner-widget-toggle spinner))))
+    (let ((final (getf trace :final)))
+      (is-equal (first final) (spinner-widget-index spinner))
+      (is-equal (second final) (spinner-widget-running-p spinner)))))
+
+(cl-weave:it-property "derived option labels remain renderable"
+  ((labels
+    (cl-weave:gen-tuple
+     (cl-weave:gen-such-that
+      (lambda (value) (plusp (length value)))
+      (cl-weave:gen-string :min-length 0 :max-length 8))
+     (cl-weave:gen-map
+      #'string-upcase
+      (cl-weave:gen-string :min-length 1 :max-length 8)))))
+  (let* ((radio (make-radio-widget labels :selected-index 1))
+         (surface (make-surface 24 2)))
+    (is-equal (second labels) (radio-widget-selected-option radio))
+    (widget-render radio surface)
+    (is (search (second labels) (surface-string surface)))))

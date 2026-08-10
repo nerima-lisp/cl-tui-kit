@@ -38,3 +38,34 @@
     (is (search "bottom" (surface-string surface))))
   (is (signals-error (make-notification-center :max-visible 0)))
   (is (signals-error (make-notification-center :placement :middle))))
+
+(deftest notification-center-edge-events (:widgets)
+  (let* ((center (make-notification-center
+                  :max-visible 2 :placement :bottom
+                  :rectangle (test-rectangle 0 0 20 2)))
+         (first (notification-center-push center "first"))
+         (second (notification-center-push
+                  center (make-notification "second" :level :error)))
+         (surface (make-surface 20 2)))
+    (is-equal 0 (notification-id first))
+    (is-equal 1 (notification-id second))
+    (is-equal 0 (notification-center-tick center nil))
+    (is-equal 0 (notification-center-tick center 0))
+    (is (not (notification-center-dismiss center :missing)))
+    (widget-render center surface)
+    (is (search "[INFO] first" (surface-string surface)))
+    (is (search "[ERROR] second" (surface-string surface)))
+    (let ((action (widget-handle-event
+                   center (make-mouse-event 0 1))))
+      (is-equal :close (action-name action))
+      (is-equal 1 (action-payload action)))
+    (is-equal 1 (length (notification-center-notifications center)))
+    (is (notification-center-dismiss center first))
+    (is-equal 0 (length (notification-center-notifications center)))
+    (is (null (widget-handle-event
+               center (make-mouse-event 0 1 :kind :release))))
+    (is (null (widget-handle-event
+               center (make-mouse-event 20 1))))
+    (is (null (widget-handle-event
+               center (make-custom-event :dismiss :missing))))
+    (is (null (widget-handle-event center (make-tick-event nil))))))

@@ -1,6 +1,6 @@
 (in-package #:cl-tui-kit/ansi)
 
-;;;; ANSI is deliberately an output-only adapter.  It consumes normalized
+;;;; ANSI is deliberately an output-only backend.  It consumes normalized
 ;;;; surfaces and never parses input, enables raw mode, or owns a terminal.
 
 (defclass ansi-backend (backend)
@@ -420,7 +420,7 @@ replacement character rather than emitting an invalid UTF-8 sequence."
 
 Reading a terminal clipboard is intentionally separate: it is an
 asynchronous query/response protocol and is not faked by this synchronous
-output adapter."
+output backend."
   (check-type text string)
   (if (backend-supports-p backend :clipboard)
       (let ((stream (ansi-backend-stream backend)))

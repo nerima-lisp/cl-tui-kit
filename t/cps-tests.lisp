@@ -54,6 +54,31 @@
     (is (not (application-running-p application)))
     (is (member '(:close) (test-backend-operations backend) :test #'equal))))
 
+(deftest application-render-and-step-continue-after-frame (:cps)
+  (let* ((backend (make-test-backend :size (make-size 8 2)))
+         (application (make-application :backend backend
+                                        :root (make-widget)
+                                        :alternate-screen-p nil))
+         (rendered-application nil)
+         (stepped-action :unset))
+    (is-equal :rendered
+              (application-render/k
+               application
+               (lambda (rendered)
+                 (setf rendered-application rendered)
+                 :rendered)))
+    (is (eq application rendered-application))
+    (is (not (application-dirty-p application)))
+    (application-invalidate application)
+    (is-equal :stepped
+              (application-step/k
+               application nil
+               (lambda (action)
+                 (setf stepped-action action)
+                 :stepped)))
+    (is (null stepped-action))
+    (is (not (application-dirty-p application)))))
+
 (deftest application-session-rejects-non-function-continuation (:cps)
   (let* ((backend (make-test-backend :size (make-size 8 2)))
          (application (make-application :backend backend
