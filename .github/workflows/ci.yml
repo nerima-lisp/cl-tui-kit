@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Mirrors the local `nix flake check` documented in
+  # docs/src/project/development.md ("Nix checks"). flake.nix wires
+  # lispCheckDependencies = [ clWeave ] into cl-nix-forge's mkPackageFlake
+  # (flake.nix:176), which is what lets the project's cl-weave-based test
+  # system run without the sibling-checkout fallback that run-tests.lisp
+  # falls back to outside Nix (run-tests.lisp:19-26) -- that fallback has no
+  # sibling checkouts to find in a fresh CI checkout. Running through Nix
+  # sidesteps the problem instead of re-solving it in shell steps.
+  test:
+    name: nix flake check (${{ matrix.system }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # flake.nix:75-78 declares exactly these two systems; the runners
+          # below are their corresponding GitHub-hosted images.
+          - os: ubuntu-latest
+            system: x86_64-linux
+          - os: macos-14
+            system: aarch64-darwin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
+        with:
+          # flake.nix pulls cl-weave, cl-tty-kit, cl-concurrent-kit,
+          # cl-boundary-kit, cl-date-kit, cl-host-kit and cl-codec-kit as
+          # github: flake inputs (flake.nix:15-46); an authenticated token
+          # avoids anonymous GitHub API rate limits while resolving them.
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # `nix flake check` runs only the current system's checks (no
+      # --all-systems), which lines up with the matrix above: each runner
+      # checks the one system flake.nix declares for it. This is the
+      # project's test gate -- docs/src/project/quality-gates.md:5-8
+      # requires a non-empty suite whose exit status is checked, and
+      # cl-nix-forge's mkPackageFlake wires the cl-weave test run into this
+      # check (flake.nix:176) so a non-zero exit here is a real test
+      # failure, not a shell script's guess at one. It also builds
+      # checks.docs, the --strict MkDocs build, since flake.nix:158 sets
+      # docs.root -- see the dedicated docs job below for an isolated,
+      # faster-feedback run of that same check.
+      - name: nix flake check
+        run: nix flake check --print-build-logs
+
+  # docs.root = ./docs (flake.nix:158) makes cl-nix-forge's mkPackageFlake
+  # emit a packages.<system>.docs output (the --strict MkDocs-Material
+  # build) in addition to folding the same build into `nix flake check` as
+  # checks.docs. Building the package directly here gives docs-only changes
+  # an isolated, faster signal than waiting on the full matrix above, and
+  # is backed by an output that actually exists in this flake rather than a
+  # separately invented gate. Single platform is sufficient: the MkDocs
+  # build has no per-system output.
+  docs:
+    name: nix build .#docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: nix build .#docs
+        run: nix build .#docs --print-build-logs

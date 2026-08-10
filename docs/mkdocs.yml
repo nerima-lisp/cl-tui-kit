@@ -1,0 +1,42 @@
+site_name: cl-tui-kit
+site_description: A generic, composable Common Lisp terminal UI toolkit
+docs_dir: src
+site_dir: ../site
+use_directory_urls: true
+strict: true
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Guide:
+      - Screen and Rendering: guide/screen-and-rendering.md
+      - Layout and Focus: guide/layout.md
+      - Widgets and Models: guide/widgets.md
+      - Events and Keymaps: guide/events.md
+      - Text Layout: guide/text-layout.md
+      - Terminal Integration: guide/terminal-integration.md
+      - Examples: guide/examples.md
+  - Reference:
+      - API: reference/api.md
+      - Architecture: reference/architecture.md
+  - Project:
+      - Development: project/development.md
+      - Quality Gates: project/quality-gates.md
