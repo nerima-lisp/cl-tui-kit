@@ -64,7 +64,7 @@ session, for the `*central-registry*` form); after that:
     (asdf:load-system "cl-tui-kit")
 
 Use `cl-tui-kit/core` when an application needs only the dependency-free core;
-load the optional adapter systems explicitly when terminal or codec integration
+load the optional integration systems explicitly when terminal or codec support
 is required. If `cl-tui-kit/tty`, `cl-tui-kit/codec`, or `cl-tui-kit/tests` is
 loaded, also register the corresponding sibling nerima-lisp repositories
 listed above using the same method.
@@ -91,8 +91,8 @@ navigation defined in [`docs/mkdocs.yml`](docs/mkdocs.yml).
 | cl-tui-kit/widgets | Domain-neutral widget and application protocols |
 | cl-tui-kit/ansi | Optional ANSI output backend, terminal modes, and OSC 52 clipboard queries |
 | cl-tui-kit/testing | Structured fake backend, frame assertions, and event replay |
-| cl-tui-kit/tty | Optional synchronous TTY and raw-mode adapter |
-| cl-tui-kit/codec | Optional UTF-8 octet adapter |
+| cl-tui-kit/tty | Optional synchronous TTY and raw-mode integration |
+| cl-tui-kit/codec | Optional UTF-8 octet codec integration |
 | cl-tui-kit/examples | Domain-neutral examples |
 | cl-tui-kit/tests | Non-interactive test suite |
 | cl-tui-kit | Umbrella system for the pure toolkit path |
@@ -104,8 +104,18 @@ can load explicitly.
 
 The widgets application layer is split into event dispatch and runtime
 lifecycle modules. The resulting data path is easy to test without opening a
-terminal, while `call-with-application-session`, `with-application-session`,
-`call-with-surface-clip`, and the optional TTY scope keep cleanup explicit.
+terminal, while `application-render/k`, `application-step/k`,
+`call-with-application-session`, `with-application-session`,
+`call-with-surface-clip`, and the optional TTY integration keep cleanup
+explicit.
+
+Indexed option controls share their movement invariant through the
+`define-indexed-control-movement` macro. Radio and select widgets therefore
+share bounded-selection logic while retaining independent rendering and event
+policies. This is the preferred pattern for new controls: keep immutable or
+callback-backed data separate from state transitions, expose an explicit CPS
+entry point when cleanup or delegation matters, and provide a macro only for a
+readable lexical scope or a repeated protocol invariant.
 
 ## Development
 
@@ -131,8 +141,10 @@ The domain-neutral searchable-list example is in
 
 Keep protocol boundaries and package exports explicit, add non-interactive
 coverage for behavior changes, and update the relevant page under `docs/src`
-when a public system or protocol changes. Use `paredit-cli` for structural
-Common Lisp inspection and run the checks above before sharing a change.
+when a public system or protocol changes. The pinned `paredit-cli` project
+provides the `paredit` executable in the Nix development shell; use the
+reproducible `nix run` form documented below for structural Common Lisp
+inspection, then run the checks above before sharing a change.
 
 ## Support
 

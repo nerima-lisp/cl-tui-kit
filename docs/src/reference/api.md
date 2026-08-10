@@ -46,8 +46,9 @@ constructors cover text, box, divider, list, lazy list, tree, text view, tabs,
 menu, table, input, textarea, button, checkbox, radio, select, spinner,
 progress, form, viewport, modal, notification center, status bar, and scroll
 bar widgets. Application lifecycle is exposed through
-application-start, application-step, application-close, and
-call-with-application-session or with-application-session.
+application-start, application-step/k, application-step, application-close,
+application-render/k, and call-with-application-session or
+with-application-session.
 
 List and tree models expose callback-based counts, lookup, stable keys,
 labels, rendering, children, and expansion state. Accessibility information,
@@ -60,7 +61,7 @@ controls, and OSC 52 clipboard requests. The testing system
 provides make-test-backend, test-backend-last-frame, test-backend-emit,
 surface-equal-p, assert-surface-text, and make-event-replay.
 
-## Optional adapters
+## Optional integrations
 
 cl-tui-kit/tty uses terminal-size and raw-mode operations from its TTY
 dependency and supplies synchronous runtime input. Its
@@ -69,13 +70,13 @@ around a continuation or body. cl-tui-kit/codec uses an external UTF-8 codec
 for string-to-octet conversion.
 
 Loading core, layout, widgets, ANSI, or testing does not require an
-interactive terminal. The optional adapters are separate ASDF systems.
+interactive terminal. The optional integrations are separate ASDF systems.
 
 ## Feature Matrix
 
 This matrix is the acceptance map for the public toolkit. “Implemented” means
-the behavior is represented by a public protocol or adapter and is covered by
-non-interactive tests where the behavior is deterministic. Optional adapter
+the behavior is represented by a public protocol or integration and is covered by
+non-interactive tests where the behavior is deterministic. Optional integration
 rows remain explicit so loading the pure core never changes terminal state.
 
 | Area | Implemented coverage | Main public surface |
@@ -89,9 +90,9 @@ rows remain explicit so loading the pure core never changes terminal state.
 | Clipboard | OSC 52 query output, BEL/ST response parsing, split input, strict RFC 4648 Base64 validation, UTF-8 decoding, and normalized clipboard events | `backend-request-clipboard`, `ansi-request-clipboard`, `clipboard-event` |
 | Keymaps and actions | Modifiers, multi-key sequences, prefixes, parent propagation, modes, overlays, semantic action constructors, and iterative dispatch | `make-keymap`, `dispatch-keymaps`, action constructors |
 | Backend protocol | Open/close lifecycle, size and resize, frame begin/present/flush, cursor, title, alternate screen, capability states, clipboard, and recoverable failure state | `backend-*`, `make-backend-capabilities` |
-| ANSI adapter | Diff-based ANSI output, color degradation, cursor/title/alternate-screen control, mouse modes, bracketed paste, focus reporting, Kitty keyboard, synchronized updates, clipboard query, and cleanup | `cl-tui-kit/ansi` |
-| TTY adapter | Terminal-size discovery, optional raw mode, synchronous blocking `next-event`, non-blocking `poll`, EOF/error state, and guaranteed stop/close cleanup | `cl-tui-kit/tty` |
-| Application runtime | Event routing, propagation, event-source integration, timers, stop/failure state, frame lifecycle, and scoped application sessions | `application-step`, `application-start`, `with-application-session` |
+| ANSI integration | Diff-based ANSI output, color degradation, cursor/title/alternate-screen control, mouse modes, bracketed paste, focus reporting, Kitty keyboard, synchronized updates, clipboard query, and cleanup | `cl-tui-kit/ansi` |
+| TTY integration | Terminal-size discovery, optional raw mode, synchronous blocking `next-event`, non-blocking `poll`, EOF/error state, and guaranteed stop/close cleanup | `cl-tui-kit/tty` |
+| Application runtime | Event routing, propagation, event-source integration, timers, stop/failure state, frame lifecycle, and scoped application sessions | `application-step/k`, `application-step`, `application-start`, `with-application-session` |
 | Widgets | Text, box, divider, button, checkbox, progress, input, textarea, radio, select, spinner, list, tree, text view, tabs, menu, table, form, viewport, modal, notifications, status bar, and scroll bar | `cl-tui-kit/widgets` |
 | Models and accessibility | Lazy list/tree callbacks, stable selection keys, visible-range rendering, focusability, enabled state, semantic roles, help text, and cursor position | widget/model protocols |
 | Testing and replay | Fake backend, frame assertions, event replay, property checks, structural Lisp checks, and coverage entry point | `cl-tui-kit/testing`, `run-tests.lisp` |

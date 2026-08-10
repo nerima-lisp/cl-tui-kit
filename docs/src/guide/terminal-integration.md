@@ -1,7 +1,7 @@
 # Terminal Integration
 
 The pure systems leave terminal lifecycle and byte-level integration to
-explicit adapters.
+explicit integrations.
 
 ## ANSI output
 
@@ -34,9 +34,9 @@ cl-tui-kit/codec provides explicit UTF-8 octet conversion for applications or
 backends that need binary output. The core continues to represent text as Lisp
 strings and cell content.
 
-## Choosing an adapter
+## Choosing an integration
 
 An application can use the core and testing systems only, use the ANSI backend
-with its own stream lifecycle, or load both tty and codec adapters for a
+with its own stream lifecycle, or load both tty and codec integrations for a
 terminal application. These choices do not alter the dependency boundary of
 the pure core.

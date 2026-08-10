@@ -12,7 +12,7 @@ release phases), modifyOtherKeys, SGR and X10 mouse reports, focus changes,
 bracketed paste, and OSC 52 clipboard responses. OSC sequences accept BEL or
 ST terminators, validate Base64 strictly, and report malformed input as a
 custom event. Stream event sources provide synchronous readers; terminal
-ownership remains an adapter responsibility.
+ownership remains an integration responsibility.
 
 ## Keymaps
 

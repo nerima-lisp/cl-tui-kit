@@ -5,7 +5,7 @@ interfaces. It turns application state into cell-based off-screen surfaces and
 lets an application choose how those surfaces are presented.
 
 The pure path does not open a terminal or change terminal state. Terminal-size,
-raw-mode, ANSI output, and UTF-8 octet handling are explicit adapter systems.
+raw-mode, ANSI output, and UTF-8 octet handling are explicit integration systems.
 
 ## Start here
 

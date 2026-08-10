@@ -27,7 +27,7 @@ documentation with the same source tree.
 Documentation should preserve these project contracts:
 
 - the core remains independent of terminal lifecycle and PTY management;
-- adapters remain optional ASDF systems;
+- integrations remain optional ASDF systems;
 - widgets return semantic actions instead of performing domain side effects;
 - rendering and text layout remain cell-aware and deterministic;
 - examples and tests remain usable without an interactive terminal.

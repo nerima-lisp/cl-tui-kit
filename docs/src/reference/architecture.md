@@ -31,7 +31,7 @@ The dependency direction is intentionally one-way:
       -> widgets
       -> testing
 
-ANSI output depends on core. TTY and codec integrations are optional adapter
+ANSI output depends on core. TTY and codec integrations are optional
 systems. The pure path does not import terminal lifecycle, OS process
 management, PTY handling, or a hidden concurrency runtime.
 

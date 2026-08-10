@@ -4,7 +4,7 @@
 
 - src/package.lisp defines the public package boundaries.
 - src/ contains the serial ASDF components for the core, layout, widgets,
-  adapters, and testing backend. Application event dispatch and runtime
+  integrations, and testing backend. Application event dispatch and runtime
   lifecycle live in separate source components.
 - t/ contains the cl-weave test system.
 - examples/ contains domain-neutral examples.
@@ -58,7 +58,9 @@ codec systems. Verify those ASDF edges in that environment with:
 Outside the Nix shell, configure ASDF's source registry for cl-tty-kit and
 cl-codec-kit before loading those optional systems.
 
-For structural Common Lisp checks, use the pinned development tool:
+For structural Common Lisp checks, use the pinned development tool. The Nix
+development shell exposes its executable as `paredit`; the explicit `nix run`
+form below is reproducible outside the shell as well:
 
     nix run github:nerima-lisp/paredit-cli/v1.6.0 -- inspect check \
       --dialect common-lisp --file src/application.lisp
