@@ -65,5 +65,7 @@ definitions for the TTY dependency chain: cl-codec-kit, cl-boundary-kit,
 cl-date-kit, cl-concurrent-kit, and cl-tty-kit. They find cl-weave through
 `CL_WEAVE_ASD` or a neighboring checkout. The coverage runner force-compiles
 the project systems, including the optional TTY and codec systems, before
-selecting its tests and rejects an empty selection. See
+selecting its tests and rejects an empty selection or instrumented source set.
+Its report covers executable project sources under `src/`; package and
+umbrella declarations plus the static Unicode range table are excluded. See
 [Development](project/development.md) for the complete workflow.

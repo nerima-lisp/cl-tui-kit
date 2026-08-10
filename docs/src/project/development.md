@@ -34,9 +34,19 @@ Use the separate coverage entry point:
 
 The coverage runner enables SB-COVER before force-compiling the project
 systems, including the optional TTY and codec systems, before selecting the
-test suite. It also rejects an empty test selection. A report directory can be
-selected with `CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY`. Coverage is a separate
-acceptance condition from ordinary test success.
+test suite. Its source scope is the project-wide `src/` directory; package and
+umbrella loading forms plus the static Unicode range table in
+`src/text-width-data.lisp` are excluded because they do not contain executable
+behavior. It also rejects an empty test selection and an empty instrumented
+source set. A report directory can be selected with
+`CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY`. Coverage is a separate acceptance
+condition from ordinary test success, and full coverage remains a target to
+close by exercising real behavior rather than by weakening the metric.
+
+CI runs this same SB-COVER entry point in the Nix development environment on
+Linux. The ordinary `nix flake check` remains the cross-platform behavior and
+documentation gate; the coverage job supplies the SBCL-specific executable
+coverage signal.
 
 The test system also uses cl-weave property tests for algebraic contracts such
 as idempotent modifier normalization. Keep property generators bounded and

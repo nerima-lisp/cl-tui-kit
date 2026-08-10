@@ -1,13 +1,20 @@
 (in-package #:cl-tui-kit/tests)
 
 (defun coverage-source-directories ()
+  ;; Every project ASDF system keeps its source components under this
+  ;; directory. Resolve it through CORE once so coverage is project-wide
+  ;; without duplicating the same pathname for each optional system.
   (list (asdf:system-relative-pathname "cl-tui-kit/core" "src/")))
 
 (defun coverage-excluded-pathnames ()
+  ;; Package/umbrella forms and the Unicode range table are declarations or
+  ;; static data, so they do not represent executable behavior to exercise.
   (list (asdf:system-relative-pathname "cl-tui-kit/core"
                                        "src/package.lisp")
         (asdf:system-relative-pathname "cl-tui-kit"
-                                       "src/umbrella.lisp")))
+                                       "src/umbrella.lisp")
+        (asdf:system-relative-pathname "cl-tui-kit/core"
+                                       "src/text-width-data.lisp")))
 
 (defun coverage-threshold (environment-variable)
   (let ((value (host-kit:getenv environment-variable)))

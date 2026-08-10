@@ -60,6 +60,30 @@ jobs:
       - name: nix flake check
         run: nix flake check --print-build-logs
 
+  # SB-COVER is SBCL-specific, so this Linux job runs the same coverage
+  # entry point documented for local development. The runner rejects an
+  # empty test plan and an empty instrumented source set; its report also
+  # keeps the remaining path to the full-coverage target visible in CI logs.
+  coverage:
+    name: SB-COVER source coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run SB-COVER coverage
+        run: |
+          report_directory="$RUNNER_TEMP/cl-tui-kit-coverage"
+          mkdir -p "$report_directory"
+          nix develop --no-update-lock-file --command env \
+            CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY="$report_directory" \
+            sbcl --script run-coverage.lisp
+
   # docs.root = ./docs (flake.nix:158) makes cl-nix-forge's mkPackageFlake
   # emit a packages.<system>.docs output (the --strict MkDocs-Material
   # build) in addition to folding the same build into `nix flake check` as
