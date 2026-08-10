@@ -8,11 +8,17 @@
   ((file-descriptor :initarg :file-descriptor :initform 0
                     :accessor %tty-backend-file-descriptor)))
 
+(defun %tty-size-valid-p (columns rows)
+  (and (integerp columns)
+       (plusp columns)
+       (integerp rows)
+       (plusp rows)))
+
 (defun %tty-size-or (file-descriptor fallback)
   (handler-case
       (multiple-value-bind (columns rows)
           (cl-tty-kit:terminal-size file-descriptor)
-        (if (and columns rows)
+        (if (%tty-size-valid-p columns rows)
             (make-size columns rows)
             fallback))
     (error () fallback)))
@@ -102,6 +108,33 @@ available."
   (prog1 (tty-runtime-queue runtime)
     (setf (tty-runtime-queue runtime) nil)))
 
+(defun %tty-runtime-read-character (runtime &key no-hang)
+  (let ((eof-marker (gensym "TTY-EOF-")))
+    (values (if no-hang
+                (read-char-no-hang
+                 (tty-runtime-input-stream runtime) nil eof-marker)
+                (read-char (tty-runtime-input-stream runtime) nil eof-marker))
+            eof-marker)))
+
+(defun %tty-runtime-feed-character (runtime character)
+  (check-type character character)
+  (%tty-runtime-enqueue
+   runtime
+   (terminal-input-parser-feed
+    (tty-runtime-parser runtime)
+    (string character))))
+
+(defun %tty-runtime-poll-result (runtime)
+  (cond
+    ((tty-runtime-queue runtime)
+     (values (%tty-runtime-drain runtime) :events))
+    ((tty-runtime-eof-p runtime)
+     (values nil :eof))
+    ((terminal-input-parser-pending-p (tty-runtime-parser runtime))
+     (values nil :pending))
+    (t
+     (values nil :no-data))))
+
 (defun tty-runtime-start (runtime)
   "Enable the runtime and, unless disabled, the terminal's raw mode."
   (%tty-runtime-check runtime)
@@ -181,16 +214,11 @@ escape sequences remain in the parser until more input or EOF arrives."
     (when (tty-runtime-eof-p runtime)
       (return (tty-runtime-eof-value runtime)))
     (tty-runtime-start runtime)
-    (let ((eof-marker (gensym "TTY-EOF-")))
-      (let ((character
-              (read-char (tty-runtime-input-stream runtime) nil eof-marker)))
-        (if (eq character eof-marker)
-            (%tty-runtime-finish-eof runtime)
-            (%tty-runtime-enqueue
-             runtime
-             (terminal-input-parser-feed
-              (tty-runtime-parser runtime)
-              (string character))))))))
+    (multiple-value-bind (character eof-marker)
+        (%tty-runtime-read-character runtime)
+      (if (eq character eof-marker)
+          (%tty-runtime-finish-eof runtime)
+          (%tty-runtime-feed-character runtime character)))))
 
 (defun tty-runtime-poll (runtime)
   "Return `(values EVENTS STATUS)` without blocking.
@@ -208,34 +236,20 @@ the stream currently has no character, and :EOF after end of input."
   (let ((read-count 0)
         (eof-seen-p nil))
     (loop while (< read-count (tty-runtime-read-size runtime))
-          do (let ((eof-marker (gensym "TTY-EOF-")))
-               (let ((character
-                       (read-char-no-hang
-                        (tty-runtime-input-stream runtime) nil eof-marker)))
-                 (cond
-                   ((eq character eof-marker)
-                    (setf eof-seen-p t)
-                    (return))
-                   ((null character)
-                    (return))
-                   (t
-                    (incf read-count)
-                    (%tty-runtime-enqueue
-                     runtime
-                     (terminal-input-parser-feed
-                      (tty-runtime-parser runtime)
-                      (string character))))))))
+          do (multiple-value-bind (character eof-marker)
+                 (%tty-runtime-read-character runtime :no-hang t)
+               (cond
+                 ((eq character eof-marker)
+                  (setf eof-seen-p t)
+                  (return))
+                 ((null character)
+                  (return))
+                 (t
+                  (incf read-count)
+                  (%tty-runtime-feed-character runtime character)))))
     (when eof-seen-p
       (%tty-runtime-finish-eof runtime))
-    (cond
-      ((tty-runtime-queue runtime)
-       (values (%tty-runtime-drain runtime) :events))
-      ((tty-runtime-eof-p runtime)
-       (values nil :eof))
-      ((terminal-input-parser-pending-p (tty-runtime-parser runtime))
-       (values nil :pending))
-      (t
-       (values nil :no-data)))))
+    (%tty-runtime-poll-result runtime)))
 
 (defun tty-runtime-event-source (runtime)
   "Return a zero-argument reader suitable for MAKE-TERMINAL-EVENT-SOURCE."
