@@ -62,40 +62,52 @@
           ((and key (listp row)) (or (getf row key) (%table-row-value row index)))
           (t (%table-row-value row index)))))
 
+(defun %table-natural-column-width (column rows index)
+  (max (table-column-min-width column)
+       (or (table-column-width column)
+           (let ((width (string-cell-width
+                         (table-column-label column))))
+             (dolist (row rows width)
+               (setf width
+                     (max width
+                          (string-cell-width
+                           (%text (%table-column-value column row index))))))))))
+
+(defun %table-natural-widths (columns rows)
+  (loop for column in columns
+        for index from 0
+        collect (%table-natural-column-width column rows index)))
+
+(defun %table-shrinkable-column-index (columns widths)
+  (loop for width in widths
+        for column in columns
+        for candidate from 0
+        when (> width (table-column-min-width column))
+          do (return candidate)))
+
+(defun %table-shrink-widths (columns widths area-width)
+  (let ((total (reduce #'+ widths :initial-value 0)))
+    (loop while (> total area-width)
+          for index = (%table-shrinkable-column-index columns widths)
+          while index
+          do (decf (nth index widths))
+             (decf total))
+    widths))
+
+(defun %table-expand-widths (widths area-width)
+  (let ((total (reduce #'+ widths :initial-value 0)))
+    (when (and widths (< total area-width))
+      (incf (car (last widths)) (- area-width total)))
+    widths))
+
 (defun %table-widths (widget)
   (let* ((columns (table-widget-columns widget))
          (rows (table-widget-rows widget))
          (area-width (max 0 (rectangle-width (widget-rectangle widget))))
-         (widths
-           (loop for column in columns
-                 for index from 0
-                 collect
-                 (max (table-column-min-width column)
-                      (or (table-column-width column)
-                          (let ((width (string-cell-width
-                                        (table-column-label column))))
-                            (dolist (row rows width)
-                              (setf width
-                                    (max width
-                                         (string-cell-width
-                                          (%text (%table-column-value
-                                                  column row index)))))))))))
-         (total (reduce #'+ widths :initial-value 0)))
-    (loop while (> total area-width)
-          do (let ((index
-                     (loop for width in widths
-                           for column in columns
-                           for candidate from 0
-                           when (> width (table-column-min-width column))
-                             do (return candidate))))
-               (if index
-                   (progn
-                     (decf (nth index widths))
-                     (decf total))
-                   (return))))
-    (when (and widths (< total area-width))
-      (incf (car (last widths)) (- area-width total)))
-    widths))
+         (widths (%table-natural-widths columns rows)))
+    (%table-expand-widths
+     (%table-shrink-widths columns widths area-width)
+     area-width)))
 
 (defun %table-column-at-x (widget x)
   (let* ((area (widget-rectangle widget))
@@ -233,67 +245,94 @@
                 :selected-column (table-widget-selected-column widget)))
     info))
 
-(defmethod widget-handle-event ((widget table-widget) event)
-  (let ((key (and (typep event 'key-event) (key-event-key event)))
-        (rows (table-widget-rows widget))
-        (columns (table-widget-columns widget)))
+(defun %table-select-row-and-move (widget row action distance)
+  (table-widget-select-row widget row)
+  (move-action action distance widget))
+
+(defun %table-handle-vertical-key (widget key)
+  (let ((selected (table-widget-selected-row widget))
+        (row-count (length (table-widget-rows widget))))
     (cond
       ((member key '(:up :k-up) :test #'equalp)
-       (when (and (table-widget-selected-row widget)
-                  (plusp (table-widget-selected-row widget)))
-         (table-widget-select-row widget (1- (table-widget-selected-row widget)))
-         (move-action :up 1 widget)))
+       (when (and selected (plusp selected))
+         (%table-select-row-and-move widget (1- selected) :up 1)))
       ((member key '(:down :k-down) :test #'equalp)
-       (when (and (table-widget-selected-row widget)
-                  (< (1+ (table-widget-selected-row widget)) (length rows)))
-         (table-widget-select-row widget (1+ (table-widget-selected-row widget)))
-         (move-action :down 1 widget)))
+       (when (and selected (< (1+ selected) row-count))
+         (%table-select-row-and-move widget (1+ selected) :down 1))))))
+
+(defun %table-handle-horizontal-key (widget key)
+  (let ((selected (table-widget-selected-column widget))
+        (column-count (length (table-widget-columns widget))))
+    (cond
       ((equalp key :left)
-       (when (plusp (table-widget-selected-column widget))
-         (table-widget-select-column widget (1- (table-widget-selected-column widget)))
+       (when (plusp selected)
+         (table-widget-select-column widget (1- selected))
          (move-action :left 1 widget)))
       ((equalp key :right)
-       (when (< (1+ (table-widget-selected-column widget)) (length columns))
-         (table-widget-select-column widget (1+ (table-widget-selected-column widget)))
-         (move-action :right 1 widget)))
+       (when (< (1+ selected) column-count)
+         (table-widget-select-column widget (1+ selected))
+         (move-action :right 1 widget))))))
+
+(defun %table-handle-boundary-key (widget key)
+  (let ((rows (table-widget-rows widget)))
+    (cond
       ((equalp key :home)
        (when rows
-         (table-widget-select-row widget 0)
-         (move-action :home 1 widget)))
+         (%table-select-row-and-move widget 0 :home 1)))
       ((equalp key :end)
        (when rows
-         (table-widget-select-row widget (1- (length rows)))
-         (move-action :end 1 widget)))
+         (%table-select-row-and-move widget (1- (length rows)) :end 1))))))
+
+(defun %table-handle-page-key (widget key)
+  (let ((selected (table-widget-selected-row widget)))
+    (cond
       ((member key '(:page-up :prior :previous-page) :test #'equalp)
-       (when (table-widget-selected-row widget)
-         (table-widget-select-row
-          widget (- (table-widget-selected-row widget)
-                    (%table-visible-row-count widget)))
-         (move-action :page-up (%table-visible-row-count widget) widget)))
+       (when selected
+         (let ((distance (%table-visible-row-count widget)))
+           (%table-select-row-and-move widget (- selected distance)
+                                        :page-up distance))))
       ((member key '(:page-down :next-page) :test #'equalp)
-       (when (table-widget-selected-row widget)
-         (table-widget-select-row
-          widget (+ (table-widget-selected-row widget)
-                    (%table-visible-row-count widget)))
-         (move-action :page-down (%table-visible-row-count widget) widget)))
-      ((member key '(:enter :return) :test #'equalp)
-       (when (table-widget-selected-row widget)
-         (select-action (list :row (table-widget-selected-row widget)
-                              :column (table-widget-selected-column widget))
-                        widget)))
-      ((and (typep event 'mouse-event)
-            (eq (mouse-event-kind event) :press)
-            (rectangle-contains-point-p
-             (widget-rectangle widget)
-             (make-point (mouse-event-x event) (mouse-event-y event))))
-       (let* ((area (widget-rectangle widget))
-              (header-offset (if (slot-value widget 'header-p) 1 0))
-              (local-row (floor (- (mouse-event-y event) (rectangle-y area)
-                                   header-offset)
-                                  (slot-value widget 'row-height)))
-              (row (+ local-row (table-widget-row-offset widget)))
-              (column (%table-column-at-x widget (mouse-event-x event))))
-         (when (and (<= 0 local-row) (< row (length rows)) column)
-           (table-widget-select-row widget row)
-           (table-widget-select-column widget column)
-           (select-action (list :row row :column column) widget)))))))
+       (when selected
+         (let ((distance (%table-visible-row-count widget)))
+           (%table-select-row-and-move widget (+ selected distance)
+                                        :page-down distance)))))))
+
+(defun %table-handle-activate-key (widget key)
+  (when (and (member key '(:enter :return) :test #'equalp)
+             (table-widget-selected-row widget))
+    (select-action (list :row (table-widget-selected-row widget)
+                         :column (table-widget-selected-column widget))
+                   widget)))
+
+(defun %table-handle-key-event (widget event)
+  (let ((key (key-event-key event)))
+    (or (%table-handle-vertical-key widget key)
+        (%table-handle-horizontal-key widget key)
+        (%table-handle-boundary-key widget key)
+        (%table-handle-page-key widget key)
+        (%table-handle-activate-key widget key))))
+
+(defun %table-handle-mouse-event (widget event)
+  (when (and (eq (mouse-event-kind event) :press)
+             (rectangle-contains-point-p
+              (widget-rectangle widget)
+              (make-point (mouse-event-x event) (mouse-event-y event))))
+    (let* ((area (widget-rectangle widget))
+           (rows (table-widget-rows widget))
+           (header-offset (if (slot-value widget 'header-p) 1 0))
+           (local-row (floor (- (mouse-event-y event) (rectangle-y area)
+                                header-offset)
+                               (slot-value widget 'row-height)))
+           (row (+ local-row (table-widget-row-offset widget)))
+           (column (%table-column-at-x widget (mouse-event-x event))))
+      (when (and (<= 0 local-row) (< row (length rows)) column)
+        (table-widget-select-row widget row)
+        (table-widget-select-column widget column)
+        (select-action (list :row row :column column) widget)))))
+
+(defmethod widget-handle-event ((widget table-widget) event)
+  (cond
+    ((typep event 'key-event)
+     (%table-handle-key-event widget event))
+    ((typep event 'mouse-event)
+     (%table-handle-mouse-event widget event))))
