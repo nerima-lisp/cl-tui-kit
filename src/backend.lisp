@@ -55,16 +55,24 @@
     copy))
 
 (defclass backend ()
-  ((size :initarg :size :initform (make-size) :accessor backend-size)
+  ((size :initarg :size :initform (make-size)
+         :reader %backend-size
+         :writer (setf %backend-size))
    (capabilities :initarg :capabilities
                  :initform (make-backend-capabilities)
                  :accessor backend-capabilities)
-   (cursor :initarg :cursor :initform (make-point) :accessor backend-cursor)
+   (cursor :initarg :cursor :initform (make-point)
+           :reader %backend-cursor
+           :writer (setf %backend-cursor))
    (cursor-visible :initarg :cursor-visible :initform t
-                   :accessor backend-cursor-visible)
-   (title :initarg :title :initform nil :accessor backend-title)
+                   :reader backend-cursor-visible
+                   :writer (setf %backend-cursor-visible))
+   (title :initarg :title :initform nil
+          :reader backend-title
+          :writer (setf %backend-title))
    (alternate-screen-p :initarg :alternate-screen-p :initform nil
-                       :accessor backend-alternate-screen-p)
+                       :reader backend-alternate-screen-p
+                       :writer (setf %backend-alternate-screen-p))
    (capability-states :initarg :capability-states
                       :initform (make-hash-table :test #'eq)
                       :reader %backend-capability-states
@@ -85,6 +93,22 @@
                  :cursor-visible (not (null cursor-visible))
                  :capability-states (%copy-capability-states capability-states)
                  :title title))
+
+(defun backend-size (backend)
+  "Return a copy of BACKEND's logical size.
+
+The returned SIZE is a fresh copy, so mutating it has no effect on BACKEND;
+use BACKEND-RESIZE to change a backend's size."
+  (check-type backend backend)
+  (copy-size (%backend-size backend)))
+
+(defun backend-cursor (backend)
+  "Return a copy of BACKEND's logical cursor position.
+
+The returned POINT is a fresh copy, so mutating it has no effect on BACKEND;
+use BACKEND-SET-CURSOR to change a backend's cursor position."
+  (check-type backend backend)
+  (copy-point (%backend-cursor backend)))
 
 (defun backend-capability-states (backend)
   "Return a copy of BACKEND's normalized capability-state table.
@@ -231,9 +255,9 @@ VALUE is supplied, BACKEND's raw capability value is updated as well."
 
 (defun backend-resize (backend width height)
   (check-type backend backend)
-  (let ((old-size (copy-size (backend-size backend)))
+  (let ((old-size (copy-size (%backend-size backend)))
         (new-size (make-size width height)))
-    (setf (backend-size backend) new-size)
+    (setf (%backend-size backend) new-size)
     (backend-resized backend old-size (copy-size new-size)))
   backend)
 
@@ -301,24 +325,24 @@ CLIPBOARD-EVENT.  Return the request result and a status keyword."))
 
 (defmethod backend-set-cursor ((backend backend) point)
   (check-type point point)
-  (setf (backend-cursor backend) (copy-point point))
+  (setf (%backend-cursor backend) (copy-point point))
   backend)
 
 (defmethod backend-set-cursor-visible ((backend backend) visible-p)
-  (setf (backend-cursor-visible backend) (not (null visible-p)))
+  (setf (%backend-cursor-visible backend) (not (null visible-p)))
   backend)
 
 (defmethod backend-enter-alternate ((backend backend))
   (when (backend-supports-p backend :alternate-screen)
-    (setf (backend-alternate-screen-p backend) t))
+    (setf (%backend-alternate-screen-p backend) t))
   backend)
 
 (defmethod backend-leave-alternate ((backend backend))
-  (setf (backend-alternate-screen-p backend) nil)
+  (setf (%backend-alternate-screen-p backend) nil)
   backend)
 
 (defmethod backend-set-title ((backend backend) title)
-  (setf (backend-title backend) title)
+  (setf (%backend-title backend) title)
   backend)
 
 (defmethod backend-invalidate ((backend backend))

@@ -521,18 +521,37 @@ implementation; it does not itself open a terminal.
   `:none`), `-clipboard`, `-alternate-screen` (boolean, default `t`).
   `(make-backend-capabilities &key (color :none) (unicode :basic) (mouse
   :none) clipboard (alternate-screen t))`.
-- **`backend`** class — accessors `backend-size`, `backend-capabilities`,
-  `backend-cursor`, `backend-cursor-visible`, `backend-title`,
-  `backend-alternate-screen-p`. `backend-state` (a keyword: `:closed`,
-  `:open`, or `:failed`) and `backend-last-error` (the condition object from
-  the most recent `backend-fail`, or `nil`) are read-only: both are
-  maintained internally by `backend-open`, `backend-close`, and
-  `backend-fail`, and a raw `setf` on either would desynchronize the
-  recorded state from the lifecycle those functions enforce.
-  `backend-capability-states` is also read-only, and additionally returns a
-  fresh copy of the backend's internal capability-state hash table on every
-  call — mutating the returned table has no effect on `backend`; call
-  `backend-set-capability-state` to change a capability's recorded state.
+- **`backend`** class — `backend-capabilities` is a plain read/write
+  accessor: nothing in `cl-tui-kit/core` ever reassigns the slot on its own,
+  so there is no invariant behind it that a raw `setf` could desynchronize.
+
+  Every other reader below is read-only, each backed by a dedicated mutator
+  that keeps it consistent with something the backend has already done:
+  - `backend-size` — a copy of the current logical size (`copy-size`, so
+    mutating the returned `size` has no effect on `backend`, and a caller
+    cannot reach the backend's own record through it); call `backend-resize`
+    to change it.
+  - `backend-cursor` — a copy of the current logical cursor position
+    (`copy-point`, same reasoning); call `backend-set-cursor` to change it.
+  - `backend-cursor-visible` — call `backend-set-cursor-visible` to change
+    it.
+  - `backend-title` — call `backend-set-title` (or `backend-clear-title`)
+    to change it.
+  - `backend-alternate-screen-p` — call `backend-enter-alternate` (which
+    additionally checks `backend-supports-p` for `:alternate-screen` before
+    setting it) or `backend-leave-alternate` to change it.
+
+  `backend-state` (a keyword: `:closed`, `:open`, or `:failed`) and
+  `backend-last-error` (the condition object from the most recent
+  `backend-fail`, or `nil`) are likewise read-only: both are maintained
+  internally by `backend-open`, `backend-close`, and `backend-fail`, and a
+  raw `setf` on either would desynchronize the recorded state from the
+  lifecycle those functions enforce. `backend-capability-states` is also
+  read-only, and additionally returns a fresh copy of the backend's internal
+  capability-state hash table on every call — mutating the returned table
+  has no effect on `backend`; call `backend-set-capability-state` to change
+  a capability's recorded state.
+
   `(make-backend &key (size (make-size)) capabilities cursor
   (cursor-visible t) title capability-states)`.
   - `(backend-capability backend capability)` — the raw value for
@@ -733,6 +752,25 @@ Widgets are small protocol objects that own presentation state only;
 application state and side effects stay in the application. `cl-tui-kit/widgets`
 depends on `cl-tui-kit/layout` and `cl-tui-kit/core`.
 
+Most widget accessors are plain read/write: content such as
+`text-widget-text`, `progress-widget-value`, `checkbox-widget-checked-p`,
+and `input-widget-value`, and configuration such as `list-widget-model` and
+every `-options`/`-items` accessor, is how an application *uses* a widget —
+assigning it directly is the interface, and no sanctioned function's
+invariant sits behind the slot. A widget's own *selection or scroll state*
+— which option, row, tab, or key is currently selected, and where a
+viewport has scrolled to — is the exception: it is documented read-only per
+widget below, each paired with the function that is the sanctioned way to
+change it (see [API
+Stability](../project/api-stability.md#read-only-accessors-for-internal-state)
+for the general rule). `select-widget-open-p` and `menu-widget-open-p` are a
+deliberate non-exception: both widgets' own `widget-handle-event` methods
+assign them directly — closing a `select-widget` on Escape, or opening a
+`menu-widget`'s submenu on Enter — rather than always routing through
+`select-widget-toggle`, so the toolkit does not itself treat that function
+as the only way in, and converting the accessor to read-only would have
+frozen a rule the code does not follow.
+
 ### Widget protocol
 
 `widget` is a `defclass`, not a struct, so every built-in widget below
@@ -927,9 +965,14 @@ on the base `widget` class:
 
 - **`input-widget`** — single-line text entry with undo/redo, selection,
   and word-boundary editing. `input-widget-value` (a `string`),
-  `input-widget-cursor` (a character index), `input-widget-scroll-offset`,
-  `input-widget-placeholder`, `input-widget-selection-anchor`,
-  `input-widget-max-history` (default 100). `(make-input-widget &key (value
+  `input-widget-cursor` (a character index; read-only, kept clamped to
+  `input-widget-value` by the widget's built-in key handling, with no
+  direct setter), `input-widget-scroll-offset` (read-only scroll state that
+  follows `input-widget-cursor` and the widget's rendered size, with no
+  direct setter), `input-widget-placeholder`, `input-widget-selection-anchor`
+  (read-only; pairs with `input-widget-cursor` to define the selected range
+  — use `input-widget-clear-selection` to clear it), `input-widget-max-history`
+  (default 100). `(make-input-widget &key (value
   "") placeholder id rectangle style theme keymap (focusable-p t)
   (max-history 100) semantic-role accessible-label accessible-description
   accessible-help-text)`. Signals `invalid-range-error` if `max-history` is
@@ -966,7 +1009,8 @@ on the base `widget` class:
 ### Choice controls
 
 - **`radio-widget`** — `radio-widget-options`,
-  `radio-widget-selected-index` (`nil` when `options` is empty),
+  `radio-widget-selected-index` (`nil` when `options` is empty; read-only,
+  kept within `options`' bounds — use `radio-widget-select` to change it),
   `radio-widget-wrap-p` (default `t`). `(make-radio-widget options &key
   selected-index action wrap-p rectangle style theme keymap (focusable-p t)
   (enabled-p t) id semantic-role accessible-label accessible-description
@@ -981,8 +1025,11 @@ on the base `widget` class:
     press selects by row.
 - **`select-widget`** — a combobox: closed, it shows only the selected
   option; open, it shows up to `select-widget-visible-rows` options.
-  `select-widget-options`, `select-widget-selected-index`,
-  `select-widget-open-p`, `select-widget-visible-rows` (default 5).
+  `select-widget-options`, `select-widget-selected-index` (read-only, kept
+  within `options`' bounds — use `select-widget-select` to change it),
+  `select-widget-open-p` (a plain read/write accessor — see the note at the
+  top of the widgets section on why it stayed writable),
+  `select-widget-visible-rows` (default 5).
   `(make-select-widget options &key selected-index (open-p nil)
   (visible-rows 5) action rectangle style theme keymap (focusable-p t)
   (enabled-p t) id semantic-role accessible-label accessible-description
@@ -998,7 +1045,9 @@ on the base `widget` class:
     control's row selects and closes.
 - **`spinner-widget`** — an animated frame cycle (also usable as a plain
   toggle). `spinner-widget-frames` (default `("-" "/" "|" "\\")`),
-  `spinner-widget-index`, `spinner-widget-running-p` (default `t`).
+  `spinner-widget-index` (read-only, kept within `frames`' bounds by
+  wrapping — use `spinner-widget-tick` to advance it),
+  `spinner-widget-running-p` (default `t`).
   `(make-spinner-widget &key (frames ("-" "/" "|" "\\")) (index 0)
   (running-p t) action rectangle style theme keymap (focusable-p t)
   (enabled-p t) id semantic-role accessible-label accessible-description
@@ -1038,8 +1087,13 @@ There is no separate materialized-list widget.
   - `(list-model-item-at model index)`, `(list-model-key-at model item
     index)`, `(list-model-label-at model item index)`,
     `(list-model-render-item model item index)`.
-- **`list-widget`** — `list-widget-model`, `list-widget-selected-key`,
-  `list-widget-offset` (default 0), `list-widget-row-height` (default 1).
+- **`list-widget`** — `list-widget-model`, `list-widget-selected-key`
+  (read-only, kept consistent with `list-widget-model` — use
+  `list-widget-select-key` to change it, or `list-widget-refresh` to
+  reconcile it after the model's contents change), `list-widget-offset`
+  (default 0; read-only scroll state kept clamped to the visible row
+  window, following the selected key and the widget's rendered size, with
+  no direct setter), `list-widget-row-height` (default 1).
   `(make-list-widget model &key id rectangle style theme keymap
   selected-key (offset 0) (row-height 1) focusable-p)`. Signals
   `invalid-range-error` if `row-height` is not a positive integer.
@@ -1075,9 +1129,14 @@ There is no separate materialized-list widget.
     `(tree-model-label-at model node)`, `(tree-model-children model node)`,
     `(tree-model-expanded-p model node)`, `(tree-model-render-item model
     node)`.
-- **`tree-widget`** — `tree-widget-selected-key`, `tree-widget-offset`
-  (default 0). `(make-tree-widget model &key id rectangle style theme
-  keymap selected-key (offset 0) focusable-p)`. The visible row set is
+- **`tree-widget`** — `tree-widget-selected-key` (read-only, kept
+  consistent with the tree model by the widget's built-in key and mouse
+  handling — use `tree-widget-refresh` to reconcile it after the model's
+  contents change), `tree-widget-offset` (default 0; read-only scroll state
+  kept clamped to the visible row window, following the selected key and
+  the widget's rendered size, with no direct setter). `(make-tree-widget
+  model &key id rectangle style theme keymap selected-key (offset 0)
+  focusable-p)`. The visible row set is
   computed by a depth-first walk that only expands nodes with
   `tree-model-expanded-p` true, and — for the viewport-scoped traversal
   used during rendering — does not compute keys or labels for nodes before
@@ -1123,7 +1182,9 @@ There is no separate materialized-list widget.
   (a `widget` or `nil`), `tab-entry-enabled-p` (default `t`). `(make-tab
   label content &key key (enabled-p t))`. Signals `invalid-type-error` if
   `content` is non-`nil` and not a `widget`.
-- **`tabs-widget`** — `tabs-widget-tabs`, `tabs-widget-selected-index`.
+- **`tabs-widget`** — `tabs-widget-tabs`, `tabs-widget-selected-index`
+  (read-only, kept within `tabs`' bounds and paired with the synced child
+  content — use `tabs-widget-select` to change it).
   `(make-tabs-widget tabs &key (selected-index 0) id rectangle style theme
   keymap focusable-p semantic-role accessible-label accessible-description
   accessible-help-text)` — falls back to the first enabled tab if
@@ -1143,8 +1204,13 @@ There is no separate materialized-list widget.
   or `nil`), `menu-item-key`. `(make-menu-item label &key action
   (enabled-p t) submenu key)`. Signals `invalid-type-error` if `submenu` is
   non-`nil` and not a `menu-widget`.
-- **`menu-widget`** — `menu-widget-items`, `menu-widget-selected-index`,
-  `menu-widget-open-p` (default `t`), `menu-widget-active-submenu`.
+- **`menu-widget`** — `menu-widget-items`, `menu-widget-selected-index`
+  (read-only, kept within `items`' bounds and paired with
+  `menu-widget-active-submenu` — use `menu-widget-select` to change both
+  together), `menu-widget-open-p` (default `t`; a plain read/write
+  accessor — see the note at the top of the widgets section on why it
+  stayed writable), `menu-widget-active-submenu` (read-only; see
+  `menu-widget-selected-index` above).
   `(make-menu-widget items &key (selected-index 0) (open-p t) id rectangle
   style theme keymap (focusable-p t) semantic-role accessible-label
   accessible-description accessible-help-text)` — falls back to the first

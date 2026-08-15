@@ -11,6 +11,54 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [3.0.0]
+
+Applies the read-only policy by its own rule rather than to a list of symbols
+somebody wrote down. 1.0.0 converted eight accessors, 2.0.0 nine more, and
+each time the set came from a review naming instances. A sweep of every
+exported accessor in the tree found the same shape again in the widget
+selection state and the backend's terminal-mode record.
+
+### Changed
+
+- Eighteen more accessors onto internal state are read-only. Widget selection
+  state: `radio-widget-selected-index`, `select-widget-selected-index`,
+  `menu-widget-selected-index`, `menu-widget-active-submenu`,
+  `tabs-widget-selected-index`, `spinner-widget-index`,
+  `list-widget-selected-key`, `list-widget-offset`,
+  `tree-widget-selected-key`, `tree-widget-offset`. Input editing state:
+  `input-widget-cursor`, `input-widget-selection-anchor`,
+  `input-widget-scroll-offset`. Backend state: `backend-size`,
+  `backend-cursor`, `backend-cursor-visible`, `backend-title`,
+  `backend-alternate-screen-p`.
+
+  Each has a mutator that does something a raw assignment does not: a bounds
+  check, a paired update of a sibling slot, or — for the backend accessors —
+  an escape sequence actually written to the terminal. Use `radio-widget-select`,
+  `list-widget-select-key`, `backend-resize`, `backend-set-cursor`, and their
+  siblings.
+
+  `backend-size` and `backend-cursor` additionally return a copy, because
+  `size` and `point` have exported mutable slots and a caller could otherwise
+  reach the backend's own record through the value it handed back.
+
+  **Breaking.** `setf` on those eighteen symbols no longer compiles.
+
+### Deliberately unchanged
+
+- Widget content and configuration stay writable: `text-widget-text`,
+  `progress-widget-value`, `checkbox-widget-checked-p`, `input-widget-value`,
+  `list-widget-model`, the `-options` and `-items` accessors, and their kind.
+  Assigning them is how the toolkit is used; there is no invariant behind
+  them for a raw write to break.
+- `backend-capabilities` keeps its writer: nothing in the tree reassigns that
+  slot, so there is no mutator whose guarantee a direct write would bypass.
+- `select-widget-open-p` and `menu-widget-open-p` keep theirs for a different
+  reason worth recording — `widget-handle-event` assigns them directly rather
+  than going through `select-widget-toggle`, so the toolkit does not itself
+  treat those functions as the sole way in. Converting the accessor would
+  have frozen a rule the code does not follow.
+
 ## [2.0.0]
 
 Completes the read-only conversion that 1.0.0 applied to only part of the
@@ -104,6 +152,7 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/nerima-lisp/cl-tui-kit/releases/tag/v1.0.0

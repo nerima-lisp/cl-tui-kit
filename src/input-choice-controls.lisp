@@ -5,11 +5,18 @@
 (defclass radio-widget (widget)
   ((options :initarg :options :accessor radio-widget-options :initform nil)
    (selected-index :initarg :selected-index
-                   :accessor radio-widget-selected-index
+                   :accessor %radio-widget-selected-index
                    :initform nil)
    (wrap-p :initarg :wrap-p :accessor radio-widget-wrap-p :initform t
            :type boolean)
    (action :initarg :action :accessor radio-widget-action :initform nil)))
+
+(defun radio-widget-selected-index (widget)
+  "Return WIDGET's selected option index, or NIL when no option is selected.
+
+This value is internal selection state kept within WIDGET's option count;
+use RADIO-WIDGET-SELECT to change it."
+  (%radio-widget-selected-index widget))
 
 (defun %control-option-label (option)
   (%text option))
@@ -81,13 +88,13 @@ sharing their rendering or event policies."
                    :accessible-help-text accessible-help-text)))
 
 (defun radio-widget-selected-option (widget)
-  (let ((index (radio-widget-selected-index widget)))
+  (let ((index (%radio-widget-selected-index widget)))
     (and index (nth index (radio-widget-options widget)))))
 
 (defun radio-widget-select (widget index)
   (when (radio-widget-options widget)
     (%control-check-index (radio-widget-options widget) index)
-    (setf (radio-widget-selected-index widget) index)
+    (setf (%radio-widget-selected-index widget) index)
     (%widget-action (radio-widget-action widget) :select
                     (radio-widget-selected-option widget) widget)))
 
@@ -104,7 +111,7 @@ sharing their rendering or event policies."
          (y (rectangle-y rectangle))
          (right (+ x (rectangle-width rectangle)))
          (bottom (+ y (rectangle-height rectangle)))
-         (selected (radio-widget-selected-index widget)))
+         (selected (%radio-widget-selected-index widget)))
     (surface-fill-rectangle surface rectangle #\Space
                              (%widget-role-style widget :background))
     (loop for option in (radio-widget-options widget)
@@ -128,14 +135,14 @@ sharing their rendering or event policies."
     (setf (getf info :label)
           (or (getf info :label) "Radio group"))
     (setf (getf info :state)
-          (list :selected-index (radio-widget-selected-index widget)
+          (list :selected-index (%radio-widget-selected-index widget)
                 :selected-option (radio-widget-selected-option widget)
                 :options (mapcar #'%control-option-label
                                  (radio-widget-options widget))))
     info))
 
 (define-indexed-control-movement %radio-move
-  radio-widget-options radio-widget-selected-index
+  radio-widget-options %radio-widget-selected-index
   :selector radio-widget-select
   :wrap-accessor radio-widget-wrap-p)
 
@@ -150,7 +157,7 @@ sharing their rendering or event policies."
     ((and (typep event 'key-event)
           (member (key-event-key event) '(:space :enter :return)))
      (radio-widget-select
-      widget (or (radio-widget-selected-index widget) 0)))
+      widget (or (%radio-widget-selected-index widget) 0)))
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
@@ -166,13 +173,20 @@ sharing their rendering or event policies."
 (defclass select-widget (widget)
   ((options :initarg :options :accessor select-widget-options :initform nil)
    (selected-index :initarg :selected-index
-                   :accessor select-widget-selected-index
+                   :accessor %select-widget-selected-index
                    :initform nil)
    (open-p :initarg :open-p :accessor select-widget-open-p :initform nil
            :type boolean)
    (visible-rows :initarg :visible-rows :accessor select-widget-visible-rows
                  :initform 5 :type integer)
    (action :initarg :action :accessor select-widget-action :initform nil)))
+
+(defun select-widget-selected-index (widget)
+  "Return WIDGET's selected option index, or NIL when no option is selected.
+
+This value is internal selection state kept within WIDGET's option count;
+use SELECT-WIDGET-SELECT to change it."
+  (%select-widget-selected-index widget))
 
 (defun make-select-widget (options &key selected-index (open-p nil)
                                      (visible-rows 5) action rectangle style theme
@@ -205,13 +219,13 @@ sharing their rendering or event policies."
                    :accessible-help-text accessible-help-text)))
 
 (defun select-widget-selected-option (widget)
-  (let ((index (select-widget-selected-index widget)))
+  (let ((index (%select-widget-selected-index widget)))
     (and index (nth index (select-widget-options widget)))))
 
 (defun select-widget-select (widget index)
   (when (select-widget-options widget)
     (%control-check-index (select-widget-options widget) index)
-    (setf (select-widget-selected-index widget) index)
+    (setf (%select-widget-selected-index widget) index)
     (%widget-action (select-widget-action widget) :select
                     (select-widget-selected-option widget) widget)))
 
@@ -223,7 +237,7 @@ sharing their rendering or event policies."
    (select-widget-selected-option widget) widget))
 
 (define-indexed-control-movement %select-move
-  select-widget-options select-widget-selected-index
+  select-widget-options %select-widget-selected-index
   :selector select-widget-select)
 
 (defun %select-visible-start (widget)
@@ -231,7 +245,7 @@ sharing their rendering or event policies."
          (count (length options))
          (visible (min count (select-widget-visible-rows widget))))
     (if (plusp count)
-        (max 0 (min (or (select-widget-selected-index widget) 0)
+        (max 0 (min (or (%select-widget-selected-index widget) 0)
                     (- count visible)))
         0)))
 
@@ -252,7 +266,7 @@ sharing their rendering or event policies."
          (right (+ x (rectangle-width rectangle)))
          (bottom (+ y (rectangle-height rectangle)))
          (options (select-widget-options widget))
-         (selected (select-widget-selected-index widget)))
+         (selected (%select-widget-selected-index widget)))
     (surface-fill-rectangle surface rectangle #\Space
                              (%widget-role-style widget :background))
     (if (select-widget-open-p widget) (let* ((count (length options))
@@ -289,7 +303,7 @@ sharing their rendering or event policies."
           (or (getf info :label) "Select"))
     (setf (getf info :state)
           (list :open-p (select-widget-open-p widget)
-                :selected-index (select-widget-selected-index widget)
+                :selected-index (%select-widget-selected-index widget)
                 :selected-option (select-widget-selected-option widget)
                 :options (mapcar #'%control-option-label
                                  (select-widget-options widget))))
@@ -307,7 +321,7 @@ sharing their rendering or event policies."
           (member (key-event-key event) '(:enter :return :space)))
      (if (select-widget-open-p widget)
          (let ((action (select-widget-select
-                        widget (or (select-widget-selected-index widget) 0))))
+                        widget (or (%select-widget-selected-index widget) 0))))
            (setf (select-widget-open-p widget) nil)
            action)
          (select-widget-toggle widget)))

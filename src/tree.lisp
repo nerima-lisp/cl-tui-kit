@@ -153,9 +153,25 @@ a lazy model can skip the materialization work for rows outside the viewport."
 
 (defclass tree-widget (widget)
   ((model :initarg :model :accessor %tree-widget-model)
-   (selected-key :initarg :selected-key :accessor tree-widget-selected-key
+   (selected-key :initarg :selected-key :accessor %tree-widget-selected-key
                  :initform nil)
-   (offset :initarg :offset :accessor tree-widget-offset :initform 0)))
+   (offset :initarg :offset :accessor %tree-widget-offset :initform 0)))
+
+(defun tree-widget-selected-key (widget)
+  "Return WIDGET's selected key, or NIL when no node is selected.
+
+This value is internal selection state kept consistent with WIDGET's
+model by WIDGET's built-in key and mouse handling; use TREE-WIDGET-REFRESH
+to reconcile it after the model's contents change."
+  (%tree-widget-selected-key widget))
+
+(defun tree-widget-offset (widget)
+  "Return the index of the first visible row in WIDGET.
+
+This value is internal scroll state that the owning subsystem keeps
+clamped to the visible row window; it follows the selected key and
+WIDGET's rendered size and has no direct setter."
+  (%tree-widget-offset widget))
 
 (defun make-tree-widget (model &key id rectangle style theme keymap selected-key
                                       (offset 0) focusable-p)
@@ -169,7 +185,7 @@ a lazy model can skip the materialization work for rows outside the viewport."
 
 (defun %tree-selected-item (widget)
   (let ((model (%tree-widget-model widget))
-        (selected (tree-widget-selected-key widget))
+        (selected (%tree-widget-selected-key widget))
         (found nil))
     (%tree-walk-visible model
                         (lambda (item)
@@ -193,15 +209,15 @@ a lazy model can skip the materialization work for rows outside the viewport."
              (item (%tree-visible-at model actual))
              (rows (%tree-visible-row-count widget)))
         (when item
-          (setf (tree-widget-selected-key widget)
+          (setf (%tree-widget-selected-key widget)
                 (%tree-visible-item-key item))
-          (let* ((offset (tree-widget-offset widget))
+          (let* ((offset (%tree-widget-offset widget))
                  (visible-offset
                    (cond
                      ((< actual offset) actual)
                      ((>= actual (+ offset rows)) (- (1+ actual) rows))
                      (t offset))))
-            (setf (tree-widget-offset widget)
+            (setf (%tree-widget-offset widget)
                   (max 0 (min visible-offset (max 0 (- count rows))))))
           actual)))))
 
@@ -224,12 +240,12 @@ a lazy model can skip the materialization work for rows outside the viewport."
   (let* ((model (%tree-widget-model widget))
          (count (%tree-visible-count model)))
     (if (zerop count)
-        (setf (tree-widget-selected-key widget) nil
-              (tree-widget-offset widget) 0)
+        (setf (%tree-widget-selected-key widget) nil
+              (%tree-widget-offset widget) 0)
         (%tree-set-index
          widget
          (or (tree-widget-selected-index widget)
-             (min (1- count) (max 0 (tree-widget-offset widget)))))))
+             (min (1- count) (max 0 (%tree-widget-offset widget)))))))
   widget)
 
 (defun tree-widget-toggle-expanded (widget)
@@ -249,11 +265,11 @@ a lazy model can skip the materialization work for rows outside the viewport."
          (selected-style (merge-styles base-style
                                        (%widget-role-style widget :selected)))
          (rows (max 0 (rectangle-height area)))
-         (offset (max 0 (tree-widget-offset widget)))
+         (offset (max 0 (%tree-widget-offset widget)))
          (items (%tree-visible-range model offset rows)))
     (loop for row from 0
           for item in items
-          for selected = (equalp (tree-widget-selected-key widget)
+          for selected = (equalp (%tree-widget-selected-key widget)
                                  (%tree-visible-item-key item))
           for style = (if selected selected-style base-style)
           for label = (format nil "~V@T~A"
@@ -272,9 +288,9 @@ a lazy model can skip the materialization work for rows outside the viewport."
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :tree))
     (setf (getf info :state)
-          (list :selected-key (tree-widget-selected-key widget)
+          (list :selected-key (%tree-widget-selected-key widget)
                 :selected-index (tree-widget-selected-index widget)
-                :offset (tree-widget-offset widget)))
+                :offset (%tree-widget-offset widget)))
     info))
 
 (defmethod widget-handle-event ((widget tree-widget) event)
@@ -305,13 +321,13 @@ a lazy model can skip the materialization work for rows outside the viewport."
             (%tree-set-index widget (1- count))
             (move-action :end 1 widget))
            ((member key '(:left) :test #'equalp)
-            (custom-action :collapse (tree-widget-selected-key widget) widget))
+            (custom-action :collapse (%tree-widget-selected-key widget) widget))
            ((member key '(:right) :test #'equalp)
-            (custom-action :expand (tree-widget-selected-key widget) widget))
+            (custom-action :expand (%tree-widget-selected-key widget) widget))
            ((or (eql key #\Space) (equalp key :space))
             (tree-widget-toggle-expanded widget))
            ((member key '(:enter :return) :test #'equalp)
-            (activate-action (tree-widget-selected-key widget) widget))))))
+            (activate-action (%tree-widget-selected-key widget) widget))))))
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
@@ -319,8 +335,8 @@ a lazy model can skip the materialization work for rows outside the viewport."
            (make-point (mouse-event-x event) (mouse-event-y event))))
      (let* ((area (widget-rectangle widget))
             (row (- (mouse-event-y event) (rectangle-y area)))
-            (index (+ (tree-widget-offset widget) row))
+            (index (+ (%tree-widget-offset widget) row))
             (count (%tree-visible-count (%tree-widget-model widget))))
        (when (and (>= row 0) (< index count))
          (%tree-set-index widget index)
-         (select-action (tree-widget-selected-key widget) widget))))))
+         (select-action (%tree-widget-selected-key widget) widget))))))

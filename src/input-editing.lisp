@@ -4,18 +4,41 @@
 
 (defclass input-widget (widget)
   ((value :initarg :value :accessor input-widget-value :initform "")
-   (cursor :initarg :cursor :accessor input-widget-cursor :initform 0)
+   (cursor :initarg :cursor :accessor %input-widget-cursor :initform 0)
    (scroll-offset :initarg :scroll-offset
-                  :accessor input-widget-scroll-offset :initform 0)
+                  :accessor %input-widget-scroll-offset :initform 0)
    (placeholder :initarg :placeholder :accessor input-widget-placeholder
                 :initform "")
    (selection-anchor :initarg :selection-anchor
-                     :accessor input-widget-selection-anchor
+                     :accessor %input-widget-selection-anchor
                      :initform nil)
    (undo-stack :accessor %input-widget-undo-stack :initform nil)
    (redo-stack :accessor %input-widget-redo-stack :initform nil)
    (max-history :initarg :max-history :accessor input-widget-max-history
                 :initform 100)))
+
+(defun input-widget-cursor (widget)
+  "Return WIDGET's caret position as an index into its value.
+
+This value is internal editing state that WIDGET's built-in key handling
+keeps clamped to WIDGET's value; it has no direct setter."
+  (%input-widget-cursor widget))
+
+(defun input-widget-selection-anchor (widget)
+  "Return the index WIDGET's active selection is anchored at, or NIL when
+there is no selection.
+
+This value pairs with INPUT-WIDGET-CURSOR to define the selected range;
+use INPUT-WIDGET-CLEAR-SELECTION to clear it."
+  (%input-widget-selection-anchor widget))
+
+(defun input-widget-scroll-offset (widget)
+  "Return the horizontal scroll offset, in cells, of WIDGET's visible text.
+
+This value is internal scroll state that the owning subsystem keeps
+clamped to keep the caret visible; it follows INPUT-WIDGET-CURSOR and
+WIDGET's rendered size and has no direct setter."
+  (%input-widget-scroll-offset widget))
 
 (defun make-input-widget (&key (value "") placeholder id rectangle style theme
                                 keymap (focusable-p t) (max-history 100)
@@ -48,19 +71,19 @@
     info))
 
 (defmethod widget-accessibility-state ((widget input-widget))
-  (list :cursor (input-widget-cursor widget)
+  (list :cursor (%input-widget-cursor widget)
         :selection-start (input-widget-selection-start widget)
         :selection-end (input-widget-selection-end widget)))
 
 (defun %input-state (widget)
   (list (copy-seq (input-widget-value widget))
-        (input-widget-cursor widget)
-        (input-widget-selection-anchor widget)))
+        (%input-widget-cursor widget)
+        (%input-widget-selection-anchor widget)))
 
 (defun %input-restore-state (widget state)
   (setf (input-widget-value widget) (first state)
-        (input-widget-cursor widget) (second state)
-        (input-widget-selection-anchor widget) (third state))
+        (%input-widget-cursor widget) (second state)
+        (%input-widget-selection-anchor widget) (third state))
   widget)
 
 (defun %input-limit-history (stack maximum)
@@ -77,8 +100,8 @@
   widget)
 
 (defun %input-selection-range (widget)
-  (let ((anchor (input-widget-selection-anchor widget))
-        (cursor (input-widget-cursor widget)))
+  (let ((anchor (%input-widget-selection-anchor widget))
+        (cursor (%input-widget-cursor widget)))
     (when (and anchor (/= anchor cursor))
       (values (min anchor cursor) (max anchor cursor)))))
 
@@ -104,7 +127,7 @@
         "")))
 
 (defun input-widget-clear-selection (widget)
-  (setf (input-widget-selection-anchor widget) nil)
+  (setf (%input-widget-selection-anchor widget) nil)
   widget)
 
 (defun input-widget-undo (widget)
@@ -153,7 +176,7 @@
 
 (defun %input-cursor-column (widget)
   (string-cell-width (subseq (input-widget-value widget)
-                             0 (input-widget-cursor widget))))
+                             0 (%input-widget-cursor widget))))
 
 (defun %input-index-at-cell-offset (value offset)
   (labels ((walk (units index column)
@@ -207,8 +230,8 @@
   (let ((value (input-widget-value widget)))
     (setf (input-widget-value widget)
           (concatenate 'string (subseq value 0 start) text (subseq value end))
-          (input-widget-cursor widget) (+ start (length text))
-          (input-widget-selection-anchor widget) nil))
+          (%input-widget-cursor widget) (+ start (length text))
+          (%input-widget-selection-anchor widget) nil))
   widget)
 
 (defun %input-delete-range (widget start end)
@@ -226,8 +249,8 @@
   (let* ((area (widget-rectangle widget))
          (width (max 0 (rectangle-width area)))
          (column (%input-cursor-column widget))
-         (offset (max 0 (input-widget-scroll-offset widget))))
-    (setf (input-widget-scroll-offset widget)
+         (offset (max 0 (%input-widget-scroll-offset widget))))
+    (setf (%input-widget-scroll-offset widget)
           (cond
             ((zerop width) 0)
             ((< column offset) column)
@@ -241,14 +264,14 @@
          (width (rectangle-width area))
          (x (+ (rectangle-x area)
                (- (%input-cursor-column widget)
-                  (input-widget-scroll-offset widget)))))
+                  (%input-widget-scroll-offset widget)))))
     (when (and (plusp width)
                (>= x (rectangle-x area))
                (< x (rectangle-right area)))
       (make-point x (rectangle-y area)))))
 
 (defun %input-cursor-text (widget)
-  (let ((cursor (input-widget-cursor widget))
+  (let ((cursor (%input-widget-cursor widget))
         (value (input-widget-value widget)))
     (if (< cursor (length value))
         (subseq value cursor (%input-next-boundary value cursor))
@@ -258,8 +281,8 @@
   (unless (zerop (length text))
     (multiple-value-bind (selection-start selection-end)
         (%input-selection-range widget)
-      (let ((start (or selection-start (input-widget-cursor widget)))
-            (end (or selection-end (input-widget-cursor widget))))
+      (let ((start (or selection-start (%input-widget-cursor widget)))
+            (end (or selection-end (%input-widget-cursor widget))))
         (%input-record-change widget)
         (%input-replace-range widget start end text))))
   widget)
@@ -282,13 +305,13 @@
 
 (defun %input-move-cursor (widget position &key shift)
   (let* ((value (input-widget-value widget))
-         (old (input-widget-cursor widget))
+         (old (%input-widget-cursor widget))
          (new (max 0 (min (length value) position))))
     (if shift
-        (unless (input-widget-selection-anchor widget)
-          (setf (input-widget-selection-anchor widget) old))
-        (setf (input-widget-selection-anchor widget) nil))
-    (setf (input-widget-cursor widget) new)
+        (unless (%input-widget-selection-anchor widget)
+          (setf (%input-widget-selection-anchor widget) old))
+        (setf (%input-widget-selection-anchor widget) nil))
+    (setf (%input-widget-cursor widget) new)
     widget))
 
 (defun %input-key-named-p (key name character)
@@ -310,7 +333,7 @@
              (source (if empty-p (input-widget-placeholder widget) value))
              (offset (if empty-p
                          0
-                         (input-widget-scroll-offset widget)))
+                         (%input-widget-scroll-offset widget)))
              (start (if empty-p
                         0
                         (%input-index-at-cell-offset value offset)))
@@ -319,13 +342,13 @@
                                                  (if empty-p :muted :foreground)))
              (cursor-column (%input-cursor-column widget))
              (cursor-x (+ (rectangle-x area)
-                          (- cursor-column (input-widget-scroll-offset widget))))
+                          (- cursor-column (%input-widget-scroll-offset widget))))
              (cursor-style (merge-styles display-style
                                          (make-style :reverse t))))
         (surface-draw-text surface (rectangle-x area) (rectangle-y area) display
                             :style display-style :max-width width)
         (%input-render-selection widget surface area value
-                                 (input-widget-scroll-offset widget)
+                                 (%input-widget-scroll-offset widget)
                                  display-style)
         (when (and (>= cursor-x (rectangle-x area))
                    (< cursor-x (rectangle-right area)))
@@ -362,7 +385,7 @@
 (defun %input-handle-cursor-key (widget event)
   (let* ((key (key-event-key event))
          (value (input-widget-value widget))
-         (cursor (input-widget-cursor widget))
+         (cursor (%input-widget-cursor widget))
          (shift-p (%input-modifier-p event :shift))
          (control-p (%input-modifier-p event :ctrl))
          (alt-p (%input-modifier-p event :alt))
@@ -401,7 +424,7 @@
 
 (defun %input-handle-delete-key (widget event)
   (let* ((key (key-event-key event))
-         (cursor (input-widget-cursor widget))
+         (cursor (%input-widget-cursor widget))
          (value (input-widget-value widget))
          (control-p (%input-modifier-p event :ctrl))
          (alt-p (%input-modifier-p event :alt))
