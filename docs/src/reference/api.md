@@ -523,9 +523,16 @@ implementation; it does not itself open a terminal.
   :none) clipboard (alternate-screen t))`.
 - **`backend`** class — accessors `backend-size`, `backend-capabilities`,
   `backend-cursor`, `backend-cursor-visible`, `backend-title`,
-  `backend-alternate-screen-p`, `backend-capability-states`, `backend-state`
-  (a keyword: `:closed`, `:open`, or `:failed`), `backend-last-error` (the
-  condition object from the most recent `backend-fail`, or `nil`).
+  `backend-alternate-screen-p`. `backend-state` (a keyword: `:closed`,
+  `:open`, or `:failed`) and `backend-last-error` (the condition object from
+  the most recent `backend-fail`, or `nil`) are read-only: both are
+  maintained internally by `backend-open`, `backend-close`, and
+  `backend-fail`, and a raw `setf` on either would desynchronize the
+  recorded state from the lifecycle those functions enforce.
+  `backend-capability-states` is also read-only, and additionally returns a
+  fresh copy of the backend's internal capability-state hash table on every
+  call — mutating the returned table has no effect on `backend`; call
+  `backend-set-capability-state` to change a capability's recorded state.
   `(make-backend &key (size (make-size)) capabilities cursor
   (cursor-visible t) title capability-states)`.
   - `(backend-capability backend capability)` — the raw value for
@@ -533,10 +540,11 @@ implementation; it does not itself open a terminal.
     unrecognized keyword returns `nil` rather than erroring, so an adapter
     can probe optional capabilities freely.
   - `(backend-capability-state backend capability)` — a normalized state:
-    `:unknown`, `:unsupported`, `:supported`, or `:error`. An explicit state
-    set via `backend-set-capability-state` takes precedence over the
-    derived value from the raw capability. Signals `invalid-option-error`
-    for an unrecognized `capability`.
+    `:unknown`, `:unsupported`, `:supported`, or `:error`, read from
+    `backend-capability-states`. An explicit state set via
+    `backend-set-capability-state` takes precedence over the derived value
+    from the raw capability. Signals `invalid-option-error` for an
+    unrecognized `capability`.
   - `(backend-supports-p backend capability)` — true only when the
     normalized state is exactly `:supported`.
   - `(backend-set-capability backend capability value)`,
@@ -1283,9 +1291,14 @@ on `cl-tui-kit/core` only.
   `ansi-backend-mouse-sgr-p`, `ansi-backend-bracketed-paste-enabled-p`,
   `ansi-backend-focus-reporting-enabled-p`,
   `ansi-backend-kitty-keyboard-flags`,
-  `ansi-backend-synchronized-updates-enabled-p`. `(make-ansi-backend &key
-  stream size capabilities)` — `capabilities` defaults to `:truecolor`
-  color and `:full` unicode.
+  `ansi-backend-synchronized-updates-enabled-p` — all six are read-only:
+  each records a terminal mode the backend has also written an escape
+  sequence for, so a raw `setf` would desynchronize the record from the
+  terminal's actual state and the next disable would emit the wrong
+  sequence or none at all. Change them only through the matching
+  `ansi-enable-*`/`ansi-disable-*` pair documented under Terminal-mode
+  controls below. `(make-ansi-backend &key stream size capabilities)` —
+  `capabilities` defaults to `:truecolor` color and `:full` unicode.
 - `(ansi-encode-style style &key (color-capability :truecolor))` — encodes
   `style` as a self-contained ANSI SGR escape sequence. `color-capability`
   is `:none`, `:basic`, `:256`, or `:truecolor`; a color the target

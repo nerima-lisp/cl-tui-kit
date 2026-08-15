@@ -18,16 +18,24 @@ introspection and testing; application code must not write through it."))
    (previous-surface :initarg :previous-surface :initform nil
                       :reader ansi-backend-previous-surface
                       :writer (setf %ansi-backend-previous-surface))
-   (mouse-mode :initform nil :accessor ansi-backend-mouse-mode)
-   (mouse-sgr-p :initform nil :accessor ansi-backend-mouse-sgr-p)
+   (mouse-mode :initform nil
+               :reader ansi-backend-mouse-mode
+               :writer (setf %ansi-backend-mouse-mode))
+   (mouse-sgr-p :initform nil
+                :reader ansi-backend-mouse-sgr-p
+                :writer (setf %ansi-backend-mouse-sgr-p))
    (bracketed-paste-enabled-p :initform nil
-                              :accessor ansi-backend-bracketed-paste-enabled-p)
+                              :reader ansi-backend-bracketed-paste-enabled-p
+                              :writer (setf %ansi-backend-bracketed-paste-enabled-p))
    (focus-reporting-enabled-p :initform nil
-                              :accessor ansi-backend-focus-reporting-enabled-p)
+                              :reader ansi-backend-focus-reporting-enabled-p
+                              :writer (setf %ansi-backend-focus-reporting-enabled-p))
    (kitty-keyboard-flags :initform nil
-                         :accessor ansi-backend-kitty-keyboard-flags)
+                         :reader ansi-backend-kitty-keyboard-flags
+                         :writer (setf %ansi-backend-kitty-keyboard-flags))
    (synchronized-updates-enabled-p :initform nil
-                                   :accessor ansi-backend-synchronized-updates-enabled-p)))
+                                   :reader ansi-backend-synchronized-updates-enabled-p
+                                   :writer (setf %ansi-backend-synchronized-updates-enabled-p))))
 
 (defun make-ansi-backend (&key stream size capabilities)
   (make-instance 'ansi-backend
@@ -204,8 +212,8 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
     (when (and sgr-p (not (ansi-backend-mouse-sgr-p backend)))
       (%ansi-write-private-mode stream 1006 t))
     (%ansi-write-private-mode stream mode-code t)
-    (setf (ansi-backend-mouse-mode backend) mode
-          (ansi-backend-mouse-sgr-p backend) sgr-p)
+    (setf (%ansi-backend-mouse-mode backend) mode
+          (%ansi-backend-mouse-sgr-p backend) sgr-p)
     (%ansi-finish backend)))
 
 (defun ansi-disable-mouse-reporting (backend)
@@ -217,8 +225,8 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
        stream (%ansi-mouse-mode-code (ansi-backend-mouse-mode backend)) nil))
     (when (ansi-backend-mouse-sgr-p backend)
       (%ansi-write-private-mode stream 1006 nil))
-    (setf (ansi-backend-mouse-mode backend) nil
-          (ansi-backend-mouse-sgr-p backend) nil)
+    (setf (%ansi-backend-mouse-mode backend) nil
+          (%ansi-backend-mouse-sgr-p backend) nil)
     (%ansi-finish backend)))
 
 (defun ansi-enable-bracketed-paste (backend)
@@ -226,7 +234,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (check-type backend ansi-backend)
   (unless (ansi-backend-bracketed-paste-enabled-p backend)
     (%ansi-write-private-mode (ansi-backend-stream backend) 2004 t)
-    (setf (ansi-backend-bracketed-paste-enabled-p backend) t))
+    (setf (%ansi-backend-bracketed-paste-enabled-p backend) t))
   (%ansi-finish backend))
 
 (defun ansi-disable-bracketed-paste (backend)
@@ -234,7 +242,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (check-type backend ansi-backend)
   (when (ansi-backend-bracketed-paste-enabled-p backend)
     (%ansi-write-private-mode (ansi-backend-stream backend) 2004 nil)
-    (setf (ansi-backend-bracketed-paste-enabled-p backend) nil))
+    (setf (%ansi-backend-bracketed-paste-enabled-p backend) nil))
   (%ansi-finish backend))
 
 (defun ansi-enable-focus-reporting (backend)
@@ -242,7 +250,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (check-type backend ansi-backend)
   (unless (ansi-backend-focus-reporting-enabled-p backend)
     (%ansi-write-private-mode (ansi-backend-stream backend) 1004 t)
-    (setf (ansi-backend-focus-reporting-enabled-p backend) t))
+    (setf (%ansi-backend-focus-reporting-enabled-p backend) t))
   (%ansi-finish backend))
 
 (defun ansi-disable-focus-reporting (backend)
@@ -250,7 +258,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (check-type backend ansi-backend)
   (when (ansi-backend-focus-reporting-enabled-p backend)
     (%ansi-write-private-mode (ansi-backend-stream backend) 1004 nil)
-    (setf (ansi-backend-focus-reporting-enabled-p backend) nil))
+    (setf (%ansi-backend-focus-reporting-enabled-p backend) nil))
   (%ansi-finish backend))
 
 (defun ansi-enable-kitty-keyboard (backend &key (flags 1))
@@ -258,7 +266,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (check-type backend ansi-backend)
   (check-type flags (integer 1))
   (format (ansi-backend-stream backend) "~C[>~Du" (code-char 27) flags)
-  (setf (ansi-backend-kitty-keyboard-flags backend) flags)
+  (setf (%ansi-backend-kitty-keyboard-flags backend) flags)
   (%ansi-finish backend))
 
 (defun ansi-disable-kitty-keyboard (backend)
@@ -266,19 +274,19 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (check-type backend ansi-backend)
   (when (ansi-backend-kitty-keyboard-flags backend)
     (format (ansi-backend-stream backend) "~C[<u" (code-char 27))
-    (setf (ansi-backend-kitty-keyboard-flags backend) nil))
+    (setf (%ansi-backend-kitty-keyboard-flags backend) nil))
   (%ansi-finish backend))
 
 (defun ansi-enable-synchronized-updates (backend)
   "Request synchronized updates around each complete ANSI frame."
   (check-type backend ansi-backend)
-  (setf (ansi-backend-synchronized-updates-enabled-p backend) t)
+  (setf (%ansi-backend-synchronized-updates-enabled-p backend) t)
   backend)
 
 (defun ansi-disable-synchronized-updates (backend)
   "Stop wrapping subsequent ANSI frames in synchronized updates."
   (check-type backend ansi-backend)
-  (setf (ansi-backend-synchronized-updates-enabled-p backend) nil)
+  (setf (%ansi-backend-synchronized-updates-enabled-p backend) nil)
   backend)
 
 (defun %ansi-write-cursor (stream x y)
@@ -496,12 +504,12 @@ asynchronous and is normalized by TERMINAL-INPUT-PARSER."
       (format stream "~C[<u" (code-char 27)))
     (when (ansi-backend-synchronized-updates-enabled-p backend)
       (%ansi-write-private-mode stream 2026 nil))
-    (setf (ansi-backend-mouse-mode backend) nil
-          (ansi-backend-mouse-sgr-p backend) nil
-          (ansi-backend-bracketed-paste-enabled-p backend) nil
-          (ansi-backend-focus-reporting-enabled-p backend) nil
-          (ansi-backend-kitty-keyboard-flags backend) nil
-          (ansi-backend-synchronized-updates-enabled-p backend) nil)
+    (setf (%ansi-backend-mouse-mode backend) nil
+          (%ansi-backend-mouse-sgr-p backend) nil
+          (%ansi-backend-bracketed-paste-enabled-p backend) nil
+          (%ansi-backend-focus-reporting-enabled-p backend) nil
+          (%ansi-backend-kitty-keyboard-flags backend) nil
+          (%ansi-backend-synchronized-updates-enabled-p backend) nil)
     (format stream "~C[0m" (code-char 27))))
 
 (defmethod backend-flush ((backend ansi-backend))

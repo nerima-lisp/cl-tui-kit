@@ -67,10 +67,14 @@
                        :accessor backend-alternate-screen-p)
    (capability-states :initarg :capability-states
                       :initform (make-hash-table :test #'eq)
-                      :accessor backend-capability-states)
-   (state :initarg :state :initform :closed :accessor backend-state)
+                      :reader %backend-capability-states
+                      :writer (setf %backend-capability-states))
+   (state :initarg :state :initform :closed
+          :reader backend-state
+          :writer (setf %backend-state))
    (last-error :initarg :last-error :initform nil
-               :accessor backend-last-error)))
+               :reader backend-last-error
+               :writer (setf %backend-last-error))))
 
 (defun make-backend (&key (size (make-size)) capabilities cursor
                           (cursor-visible t) title capability-states)
@@ -81,6 +85,18 @@
                  :cursor-visible (not (null cursor-visible))
                  :capability-states (%copy-capability-states capability-states)
                  :title title))
+
+(defun backend-capability-states (backend)
+  "Return a copy of BACKEND's normalized capability-state table.
+
+The returned hash table is a fresh copy, so mutating it has no effect on
+BACKEND; use BACKEND-SET-CAPABILITY-STATE to change a capability's state."
+  (check-type backend backend)
+  (let ((copy (make-hash-table :test #'eq)))
+    (maphash (lambda (capability state)
+               (setf (gethash capability copy) state))
+             (%backend-capability-states backend))
+    copy))
 
 (defun backend-capability (backend capability)
   "Return BACKEND's raw capability value for CAPABILITY.
@@ -127,7 +143,7 @@ precedence over the declarative capability value."
   (check-type backend backend)
   (%check-backend-capability capability)
   (multiple-value-bind (state present-p)
-    (gethash capability (backend-capability-states backend))
+    (gethash capability (%backend-capability-states backend))
     (if present-p
         (%check-backend-capability-state state)
         (%backend-derived-capability-state
@@ -170,7 +186,7 @@ VALUE is supplied, BACKEND's raw capability value is updated as well."
   (%check-backend-capability-state state)
   (when value-supplied-p
     (backend-set-capability backend capability value))
-  (setf (gethash capability (backend-capability-states backend)) state)
+  (setf (gethash capability (%backend-capability-states backend)) state)
   backend)
 
 (defgeneric backend-open (backend)
@@ -184,8 +200,8 @@ VALUE is supplied, BACKEND's raw capability value is updated as well."
 
 (defmethod backend-open ((backend backend))
   (check-type backend backend)
-  (setf (backend-state backend) :open
-        (backend-last-error backend) nil)
+  (setf (%backend-state backend) :open
+        (%backend-last-error backend) nil)
   backend)
 
 (defmethod backend-close ((backend backend))
@@ -196,18 +212,18 @@ VALUE is supplied, BACKEND's raw capability value is updated as well."
           (backend-reset-output backend)
           (backend-flush backend))
       (condition (condition)
-        (setf (backend-state backend) :failed
-              (backend-last-error backend) condition)
+        (setf (%backend-state backend) :failed
+              (%backend-last-error backend) condition)
         (error condition))))
-  (setf (backend-state backend) :closed
-        (backend-last-error backend) nil)
+  (setf (%backend-state backend) :closed
+        (%backend-last-error backend) nil)
   backend)
 
 (defmethod backend-fail ((backend backend) condition)
   (check-type backend backend)
   (check-type condition condition)
-  (setf (backend-state backend) :failed
-        (backend-last-error backend) condition)
+  (setf (%backend-state backend) :failed
+        (%backend-last-error backend) condition)
   backend)
 
 (defgeneric backend-resized (backend old-size new-size)
