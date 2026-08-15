@@ -81,6 +81,18 @@ form below is reproducible outside the shell as well:
 The documentation root is declared in the flake so the same project metadata
 can build the MkDocs site along with the Lisp package.
 
+## API stability tier
+
+cl-tui-kit/core, cl-tui-kit/layout, cl-tui-kit/widgets, cl-tui-kit/ansi, and
+cl-tui-kit/testing are the stable tier: every export is covered by SemVer,
+and a change that removes an export, narrows accepted input, or otherwise
+breaks a caller needs a major-version bump and the deprecation procedure.
+cl-tui-kit/tty and cl-tui-kit/codec are experimental and can change without
+that procedure, because each depends on a sibling nerima-lisp library not
+published to Quicklisp. Check which tier a change lands in before deciding
+whether it needs a major bump; see [API Stability](api-stability.md) for the
+full policy.
+
 ## Documentation changes
 
 Update the canonical page under docs/src and keep the five navigation

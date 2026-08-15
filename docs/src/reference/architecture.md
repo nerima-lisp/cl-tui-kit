@@ -19,8 +19,12 @@ frame presentation.
 Widget state, normalized events, actions, and surfaces form the data path.
 Lifecycle operations form a separate control path: CPS functions own the
 start/restore/stop boundary, and the corresponding `defmacro` helpers only
-bind expressions once before delegating to those functions. This keeps cleanup
-visible without hiding an event loop or introducing a second runtime model.
+bind expressions once before delegating to those functions. This keeps
+cleanup visible: the widget and backend layers never force an event loop or
+a second runtime model on the application behind its back. The toolkit does
+ship one optional runtime model of its own, a deterministic, threadless
+[event loop](event-loop.md) — but using it is a choice an application makes
+explicitly, not a hidden default.
 
 ## System direction
 
@@ -63,7 +67,9 @@ semantic actions. Focus is a tree with scopes and modal restoration; it is
 separate from list selection.
 
 The CPS helpers expose continuation boundaries without introducing a hidden
-event loop, thread, or sleep.
+thread or sleep, and without silently starting an event loop behind the
+application's back. See [Event Loop](event-loop.md) for the optional
+deterministic loop the toolkit ships for applications that want one.
 
 ## Lazy data and composition
 

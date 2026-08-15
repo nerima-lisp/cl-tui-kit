@@ -29,6 +29,20 @@ For deterministic frame checks, use the testing backend:
       (cl-tui-kit/core:backend-present backend surface)
       (cl-tui-kit/testing:test-backend-last-frame backend))
 
+## Supported implementations
+
+cl-tui-kit is developed and verified against SBCL only; no other Common
+Lisp implementation runs in this project's checks.
+
+| Implementation | Systems covered | Verified construction |
+| --- | --- | --- |
+| SBCL | All systems in this repository | x86_64-linux, aarch64-darwin |
+
+`src/` contains no `#+`/`#-` reader conditionals and no
+implementation-specific code, so loading under another conforming Common
+Lisp implementation is plausible, but that has not been verified and is not
+supported.
+
 ## Install
 
 cl-tui-kit is distributed as ASDF systems in this repository; it is not yet
