@@ -17,6 +17,24 @@
    (max-history :initarg :max-history :accessor input-widget-max-history
                 :initform 100)))
 
+(defmethod (setf input-widget-value) :after (new-value (widget input-widget))
+  "Keep WIDGET's cursor and selection anchor within NEW-VALUE's bounds.
+
+INPUT-WIDGET-VALUE is a plain writable accessor, so an application may
+replace it directly with a shorter string.  Without this, the cursor and
+anchor that the editing operations maintain would keep pointing past the
+new value's end, and the next indexed read -- rendering, typing, moving
+the cursor -- would signal on an out-of-range SUBSEQ.  Clamping once here,
+at the sole place VALUE can change out from under them, keeps every reader
+of the cursor or anchor correct without having to clamp at each one."
+  (declare (ignore new-value))
+  (let ((length (length (input-widget-value widget))))
+    (setf (%input-widget-cursor widget)
+          (max 0 (min (%input-widget-cursor widget) length)))
+    (let ((anchor (%input-widget-selection-anchor widget)))
+      (when (and anchor (> anchor length))
+        (setf (%input-widget-selection-anchor widget) length)))))
+
 (defun input-widget-cursor (widget)
   "Return WIDGET's caret position as an index into its value.
 

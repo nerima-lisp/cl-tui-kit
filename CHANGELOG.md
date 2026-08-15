@@ -11,6 +11,31 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [4.1.1]
+
+### Fixed
+
+- Replacing a widget's content left a stale index behind it, and the next
+  render or interaction signalled. Six accessors are writable by design —
+  `input-widget-value`, `radio-widget-options`, `select-widget-options`,
+  `menu-widget-items`, `tabs-widget-tabs`, `spinner-widget-frames` — while
+  the index into each is internal state maintained by the editing and
+  selection operations. Assigning shorter content did not reconcile the two.
+
+  Concretely: `(setf (input-widget-value w) "ab")` with the caret past
+  position two made the next render evaluate `(subseq "ab" 0 <caret>)`.
+  Shrinking a radio or select option list tripped the bounds check in
+  `%control-check-index`. Shrinking a menu's items or a tab list called a
+  struct accessor on the `nil` that `nth` returned, before the bounds check
+  ran. Emptying a spinner's frames divided by zero in `spinner-widget-tick`
+  and failed a `check-type` in `widget-render`.
+
+  Each accessor now clamps its dependent index when the content is assigned,
+  at the one point the pairing can go stale, rather than defending at every
+  place the index is read. All six stay writable: assigning content is the
+  interface, and the fix belongs on the assignment rather than in a
+  restriction.
+
 ## [4.1.0]
 
 ### Fixed
@@ -234,7 +259,8 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.1...HEAD
+[4.1.1]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.0...v4.1.1
 [4.1.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v2.0.0...v3.0.0

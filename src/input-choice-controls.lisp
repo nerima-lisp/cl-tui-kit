@@ -18,6 +18,22 @@ This value is internal selection state kept within WIDGET's option count;
 use RADIO-WIDGET-SELECT to change it."
   (%radio-widget-selected-index widget))
 
+(defmethod (setf radio-widget-options) :after (new-options (widget radio-widget))
+  "Keep WIDGET's selected index within NEW-OPTIONS' bounds.
+
+RADIO-WIDGET-OPTIONS is a plain writable accessor, so an application may
+replace it directly with a shorter list.  Without this, the selected
+index that RADIO-WIDGET-SELECT maintains would keep pointing past the new
+options' end, and the next Enter/Space would pass that stale index
+straight into RADIO-WIDGET-SELECT, which signals INDEX-OUT-OF-BOUNDS-
+ERROR via %CONTROL-CHECK-INDEX."
+  (declare (ignore new-options))
+  (let ((index (%radio-widget-selected-index widget))
+        (count (length (radio-widget-options widget))))
+    (when (and index (>= index count))
+      (setf (%radio-widget-selected-index widget)
+            (and (plusp count) (1- count))))))
+
 (defun %control-option-label (option)
   (%text option))
 
@@ -187,6 +203,17 @@ sharing their rendering or event policies."
 This value is internal selection state kept within WIDGET's option count;
 use SELECT-WIDGET-SELECT to change it."
   (%select-widget-selected-index widget))
+
+(defmethod (setf select-widget-options) :after (new-options (widget select-widget))
+  "Keep WIDGET's selected index within NEW-OPTIONS' bounds; see the
+:AFTER method on RADIO-WIDGET-OPTIONS for the shape of the bug this
+guards against."
+  (declare (ignore new-options))
+  (let ((index (%select-widget-selected-index widget))
+        (count (length (select-widget-options widget))))
+    (when (and index (>= index count))
+      (setf (%select-widget-selected-index widget)
+            (and (plusp count) (1- count))))))
 
 (defun select-widget-open-p (widget)
   "Return whether WIDGET's option list is open.

@@ -21,6 +21,16 @@ This value is internal selection state kept within WIDGET's tab count and
 paired with the synced child content; use TABS-WIDGET-SELECT to change it."
   (%tabs-widget-selected-index widget))
 
+(defmethod (setf tabs-widget-tabs) :after (new-tabs (widget tabs-widget))
+  "Keep WIDGET's selected index within NEW-TABS' bounds; see the sibling
+:AFTER method on MENU-WIDGET-ITEMS for the shape of the bug this guards
+against -- the :LEFT/:PREVIOUS-TAB handler here has the identical
+unguarded walk into TAB-ENTRY-ENABLED-P."
+  (declare (ignore new-tabs))
+  (let ((count (length (tabs-widget-tabs widget))))
+    (when (>= (%tabs-widget-selected-index widget) count)
+      (setf (%tabs-widget-selected-index widget) (max 0 (1- count))))))
+
 (defun %first-enabled-tab (tabs)
   (loop for tab in tabs for index from 0
         when (tab-entry-enabled-p tab) do (return index)))

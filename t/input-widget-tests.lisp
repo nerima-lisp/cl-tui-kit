@@ -743,3 +743,131 @@
     (is-equal (second labels) (radio-widget-selected-option radio))
     (widget-render radio surface)
     (is (search (second labels) (surface-string surface)))))
+
+(deftest input-widget-value-replacement-keeps-cursor-and-anchor-valid
+    (:widgets)
+  ;; INPUT-WIDGET-VALUE (src/input-editing.lisp:6) is a plain writable
+  ;; accessor; the cursor and selection anchor are maintained internally by
+  ;; the editing operations and were never re-clamped when an application
+  ;; replaced VALUE directly with something shorter.  The next indexed read
+  ;; -- rendering, typing, or reading the selection -- fed the stale index
+  ;; straight into SUBSEQ and signalled.
+  (let ((input (make-input-widget
+                :value "one two three"
+                :rectangle (make-rectangle 0 0 8 1))))
+    (widget-handle-event input (test-key :end))
+    (is-equal 13 (input-widget-cursor input))
+    (setf (input-widget-value input) "ab")
+    (is-equal 2 (input-widget-cursor input))
+    (let ((surface (make-surface 8 1)))
+      (widget-render input surface)
+      (is (search "ab" (surface-string surface)))))
+  (let ((input (make-input-widget :value "one two three")))
+    ;; %INPUT-INSERT reads the cursor directly when there is no selection,
+    ;; so typing right after the shrink -- with no render in between --
+    ;; must not resurrect the stale index either.
+    (widget-handle-event input (test-key :end))
+    (setf (input-widget-value input) "ab")
+    (widget-handle-event input (make-text-input-event "X"))
+    (is-equal "abX" (input-widget-value input))
+    (is-equal 3 (input-widget-cursor input)))
+  (let ((input (make-input-widget
+                :value "one two three"
+                :rectangle (make-rectangle 0 0 8 1))))
+    ;; The selection anchor has the same shape of bug as the cursor:
+    ;; shift-selection can leave it far past a value that VALUE is later
+    ;; replaced with, and %INPUT-SELECTION-RANGE fed that stale anchor
+    ;; straight into SUBSEQ via INPUT-WIDGET-SELECTED-TEXT.
+    (widget-handle-event input (test-key :end))
+    (widget-handle-event input (test-key :left :shift))
+    (widget-handle-event input (test-key :home :shift))
+    (is-equal 0 (input-widget-cursor input))
+    (setf (input-widget-value input) "ab")
+    (is-equal "ab" (input-widget-selected-text input))
+    (let ((surface (make-surface 8 1)))
+      (widget-render input surface)
+      (is (search "ab" (surface-string surface))))))
+
+(deftest choice-widget-options-replacement-clamps-selected-index (:widgets)
+  ;; RADIO-WIDGET-OPTIONS and SELECT-WIDGET-OPTIONS are plain writable
+  ;; accessors; the selected index is maintained separately by
+  ;; RADIO-WIDGET-SELECT / SELECT-WIDGET-SELECT and was never re-clamped
+  ;; when the options list shrank.  Pressing Enter/Space then fed the
+  ;; stale index straight into -SELECT, which signals
+  ;; INDEX-OUT-OF-BOUNDS-ERROR via %CONTROL-CHECK-INDEX.
+  (let ((radio (make-radio-widget '("A" "B" "C" "D" "E") :selected-index 4)))
+    (setf (radio-widget-options radio) (list "X" "Y"))
+    (is-equal 1 (radio-widget-selected-index radio))
+    (let ((action (widget-handle-event radio (test-key :enter))))
+      (is-equal :select (action-name action))
+      (is-equal "Y" (action-payload action))))
+  (let ((select (make-select-widget '("A" "B" "C" "D" "E")
+                                    :selected-index 4 :open-p t)))
+    (setf (select-widget-options select) (list "X" "Y"))
+    (is-equal 1 (select-widget-selected-index select))
+    (let ((action (widget-handle-event select (test-key :enter))))
+      (is-equal :select (action-name action))
+      (is-equal "Y" (action-payload action))))
+  (let ((empty-radio (make-radio-widget '("A" "B") :selected-index 1)))
+    ;; Shrinking to no options at all must clear the selection rather than
+    ;; leave a phantom index behind.
+    (setf (radio-widget-options empty-radio) nil)
+    (is (null (radio-widget-selected-index empty-radio)))))
+
+(deftest menu-and-tabs-content-replacement-clamps-selected-index (:widgets)
+  ;; MENU-WIDGET-ITEMS and TABS-WIDGET-TABS are plain writable accessors;
+  ;; the selected index is maintained separately and was never re-clamped
+  ;; when the list shrank.  The :UP / :LEFT navigation handlers walk
+  ;; candidate indices down from the (possibly stale) selected index and
+  ;; call MENU-ITEM-ENABLED-P / TAB-ENTRY-ENABLED-P on each candidate
+  ;; before checking it is in range, so an out-of-range NTH result reached
+  ;; those struct accessors as NIL.
+  (let ((menu (make-menu-widget
+               (list (make-menu-item "One") (make-menu-item "Two")
+                     (make-menu-item "Three") (make-menu-item "Four")
+                     (make-menu-item "Five"))
+               :selected-index 4 :open-p nil)))
+    (setf (menu-widget-items menu)
+          (list (make-menu-item "X") (make-menu-item "Y")))
+    (is-equal 1 (menu-widget-selected-index menu))
+    (let ((action (widget-handle-event menu (test-key :up))))
+      (is-equal :move (action-name action)))
+    (is-equal 0 (menu-widget-selected-index menu)))
+  (let ((tabs (make-tabs-widget
+               (list (make-tab "One" nil) (make-tab "Two" nil)
+                     (make-tab "Three" nil) (make-tab "Four" nil)
+                     (make-tab "Five" nil))
+               :selected-index 4)))
+    (setf (tabs-widget-tabs tabs)
+          (list (make-tab "X" nil) (make-tab "Y" nil)))
+    (is-equal 1 (tabs-widget-selected-index tabs))
+    (let ((action (widget-handle-event tabs (test-key :left))))
+      (is-equal :select (action-name action)))
+    (is-equal 0 (tabs-widget-selected-index tabs))))
+
+(deftest spinner-widget-frames-replacement-clamps-index-and-guards-empty
+    (:widgets)
+  ;; SPINNER-WIDGET-FRAMES is a plain writable accessor.  A stale index
+  ;; surviving a non-empty shrink made SPINNER-WIDGET-CURRENT-FRAME return
+  ;; NIL via NTH, which WIDGET-RENDER fed straight into SURFACE-DRAW-TEXT's
+  ;; (CHECK-TYPE TEXT STRING).  Shrinking to an empty list is a distinct
+  ;; failure: SPINNER-WIDGET-TICK's (MOD (1+ INDEX) (LENGTH FRAMES)) divides
+  ;; by zero once FRAMES is empty, regardless of the index.
+  (let ((spinner (make-spinner-widget
+                  :frames '("aa" "bb" "cc" "dd")
+                  :index 3
+                  :rectangle (test-rectangle 0 0 2 1)))
+        (surface (make-surface 2 1)))
+    (setf (spinner-widget-frames spinner) (list "x" "y"))
+    (is-equal 1 (spinner-widget-index spinner))
+    (widget-render spinner surface)
+    (is (search "y" (surface-string surface))))
+  (let ((spinner (make-spinner-widget :frames '("-" "/" "|") :running-p t))
+        (surface (make-surface 2 1)))
+    (setf (spinner-widget-frames spinner) nil)
+    (is-equal 0 (spinner-widget-index spinner))
+    (spinner-widget-tick spinner)
+    (is-equal 0 (spinner-widget-index spinner))
+    (is (null (spinner-widget-current-frame spinner)))
+    (widget-render spinner surface)
+    (is (null (spinner-widget-current-frame spinner)))))

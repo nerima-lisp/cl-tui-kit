@@ -17,6 +17,21 @@ This value is internal animation state kept within WIDGET's frame count by
 wrapping; use SPINNER-WIDGET-TICK to advance it."
   (%spinner-widget-index widget))
 
+(defmethod (setf spinner-widget-frames) :after (new-frames (widget spinner-widget))
+  "Keep WIDGET's frame index within NEW-FRAMES' bounds.
+
+SPINNER-WIDGET-FRAMES is a plain writable accessor, so an application may
+replace it directly with a shorter -- or empty -- list.  Without this, a
+stale index surviving a non-empty shrink made SPINNER-WIDGET-CURRENT-
+FRAME return NIL via NTH, which WIDGET-RENDER then fed to
+SURFACE-DRAW-TEXT's (CHECK-TYPE TEXT STRING).  An empty list is a
+separate failure this clamp alone cannot fix -- see the guards in
+SPINNER-WIDGET-TICK and WIDGET-RENDER below."
+  (declare (ignore new-frames))
+  (let ((count (length (spinner-widget-frames widget))))
+    (when (>= (%spinner-widget-index widget) count)
+      (setf (%spinner-widget-index widget) (max 0 (1- count))))))
+
 (defun make-spinner-widget
     (&key (frames nil frames-p)
           (index 0)
@@ -61,7 +76,7 @@ wrapping; use SPINNER-WIDGET-TICK to advance it."
   (nth (%spinner-widget-index widget) (spinner-widget-frames widget)))
 
 (defun spinner-widget-tick (widget)
-  (when (spinner-widget-running-p widget)
+  (when (and (spinner-widget-running-p widget) (spinner-widget-frames widget))
     (setf (%spinner-widget-index widget)
           (mod (1+ (%spinner-widget-index widget))
                (length (spinner-widget-frames widget))))
@@ -81,14 +96,16 @@ wrapping; use SPINNER-WIDGET-TICK to advance it."
    1))
 
 (defmethod widget-render ((widget spinner-widget) surface)
-  (let ((rectangle (widget-rectangle widget)))
+  (let ((rectangle (widget-rectangle widget))
+        (frame (spinner-widget-current-frame widget)))
     (surface-fill-rectangle surface rectangle #\Space
                              (%widget-role-style widget :background))
-    (surface-draw-text
-     surface (rectangle-x rectangle) (rectangle-y rectangle)
-     (spinner-widget-current-frame widget)
-     :style (%widget-role-style widget :accent)
-     :max-width (rectangle-width rectangle)))
+    (when frame
+      (surface-draw-text
+       surface (rectangle-x rectangle) (rectangle-y rectangle)
+       frame
+       :style (%widget-role-style widget :accent)
+       :max-width (rectangle-width rectangle))))
   surface)
 
 (defmethod widget-accessibility-info ((widget spinner-widget))
