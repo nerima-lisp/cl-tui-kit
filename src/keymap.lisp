@@ -22,13 +22,27 @@
 
 (defstruct (keymap
             (:constructor %make-keymap
-                (name parent mode bindings modes prefix-timeout)))
+                (name parent %mode bindings modes %prefix-timeout)))
   (name :keymap :type symbol)
   parent
-  (mode :default :type symbol)
+  (%mode :default :type symbol)
   bindings
   modes
-  prefix-timeout)
+  %prefix-timeout)
+
+(defun keymap-mode (keymap)
+  "Return KEYMAP's current mode.
+
+Use SET-KEYMAP-MODE to change it; that function validates the new mode is
+a symbol before assigning it."
+  (keymap-%mode keymap))
+
+(defun keymap-prefix-timeout (keymap)
+  "Return KEYMAP's prefix-timeout callback, or NIL if none is set.
+
+Use SET-KEYMAP-PREFIX-TIMEOUT to change it; that function validates the
+new value is a function before assigning it."
+  (keymap-%prefix-timeout keymap))
 
 (defun make-keymap (&key (name :keymap) parent (mode :default)
                          prefix-timeout)
@@ -38,15 +52,15 @@
 
 (defun set-keymap-mode (keymap mode)
   (check-type mode symbol)
-  (setf (keymap-mode keymap) mode)
+  (setf (keymap-%mode keymap) mode)
   keymap)
 
 (defun set-keymap-prefix-timeout (keymap function)
   (when function (check-type function function))
-  (setf (keymap-prefix-timeout keymap) function)
+  (setf (keymap-%prefix-timeout keymap) function)
   keymap)
 
-(defun keymap-mode-map (keymap &optional (mode (keymap-mode keymap)))
+(defun keymap-mode-map (keymap &optional (mode (keymap-%mode keymap)))
   (or (and mode (gethash mode (keymap-modes keymap))) keymap))
 
 (defun define-keymap-mode (keymap mode &key (inherit-parent t))
@@ -229,7 +243,7 @@ spawn a timer thread."
   (check-type state keymap-state)
   (let ((pending (keymap-state-%pending state)))
     (when pending
-      (let ((timeout (keymap-prefix-timeout keymap)))
+      (let ((timeout (keymap-%prefix-timeout keymap)))
         (reset-keymap-state state)
         (%make-keymap-result
          :timeout

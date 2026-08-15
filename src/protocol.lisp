@@ -22,7 +22,7 @@
 (defstruct (event-loop
             (:constructor %make-event-loop
                 (clock event-handler error-handler events-head events-tail
-                 tasks next-id next-sequence running-p stopped-p woken-p)))
+                 tasks next-id next-sequence %running-p %stopped-p woken-p)))
   (clock #'%event-loop-default-clock :type function)
   event-handler
   (error-handler #'%event-loop-default-error-handler :type function)
@@ -31,9 +31,21 @@
   tasks
   (next-id 0 :type fixnum)
   (next-sequence 0 :type fixnum)
-  (running-p nil :type boolean)
-  (stopped-p nil :type boolean)
+  (%running-p nil :type boolean)
+  (%stopped-p nil :type boolean)
   (woken-p nil :type boolean))
+
+(defun event-loop-running-p (loop)
+  "Return true when LOOP is currently draining work inside EVENT-LOOP-RUN."
+  (check-type loop event-loop)
+  (event-loop-%running-p loop))
+
+(defun event-loop-stopped-p (loop)
+  "Return true when LOOP has been asked to stop via EVENT-LOOP-STOP.
+
+EVENT-LOOP-RUN clears this flag when it starts."
+  (check-type loop event-loop)
+  (event-loop-%stopped-p loop))
 
 (defun make-event-loop
     (&key clock event-handler (error-handler #'%event-loop-default-error-handler))
@@ -248,7 +260,7 @@ call EVENT-LOOP-POST or EVENT-LOOP-WAKEUP."
 
 (defun event-loop-stop (loop)
   (check-type loop event-loop)
-  (setf (event-loop-stopped-p loop) t)
+  (setf (event-loop-%stopped-p loop) t)
   (event-loop-wakeup loop)
   loop)
 
@@ -263,18 +275,18 @@ items."
   (when max-steps
     (check-type max-steps (integer 0 *)))
   (when until (check-type until function))
-  (setf (event-loop-stopped-p loop) nil
-        (event-loop-running-p loop) t)
+  (setf (event-loop-%stopped-p loop) nil
+        (event-loop-%running-p loop) t)
   (unwind-protect
        (loop with processed = 0
-             while (and (not (event-loop-stopped-p loop))
+             while (and (not (event-loop-%stopped-p loop))
                         (or (null max-steps) (< processed max-steps))
                         (not (and until (funcall until loop))))
              for did-work = (event-loop-step loop :handler handler)
              while did-work
              do (incf processed)
              finally (return processed))
-    (setf (event-loop-running-p loop) nil)))
+    (setf (event-loop-%running-p loop) nil)))
 
 ;;;; Incremental terminal event sources
 

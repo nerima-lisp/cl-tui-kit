@@ -16,7 +16,7 @@ wrapper."
   (check-type continuation function)
   (application-layout application)
   (let ((backend (application-backend application))
-        (surface (application-surface application)))
+        (surface (%application-surface application)))
     (surface-clear surface)
     (widget-render (application-root application) surface)
     (let* ((focused (%application-focused-widget application))
@@ -31,7 +31,7 @@ wrapper."
      (lambda (presented-surface)
        (declare (ignore presented-surface))
        (surface-mark-clean surface)
-       (setf (application-dirty-p application) nil)
+       (setf (%application-dirty-p application) nil)
        (funcall continuation application)))))
 
 (defun application-render (application)
@@ -118,13 +118,13 @@ wrapper."
                  path event (or keymap-state (make-keymap-state))))))))))
 
 (defun %application-focused-widget (application)
-  (let ((current (focus-tree-current (application-focus-tree application))))
+  (let ((current (focus-tree-current (%application-focus-tree application))))
     (and current (focus-node-widget current))))
 
 (defun %application-set-focus-widget (application widget)
   (let ((node (%find-focus-node (focus-tree-root
-                                 (application-focus-tree application))
+                                 (%application-focus-tree application))
                                 widget)))
     (when (and node (focus-node-focusable-p node))
-      (focus-tree-set-current (application-focus-tree application) node)
+      (focus-tree-set-current (%application-focus-tree application) node)
       widget)))

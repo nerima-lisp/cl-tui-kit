@@ -175,7 +175,7 @@ sharing their rendering or event policies."
    (selected-index :initarg :selected-index
                    :accessor %select-widget-selected-index
                    :initform nil)
-   (open-p :initarg :open-p :accessor select-widget-open-p :initform nil
+   (open-p :initarg :open-p :accessor %select-widget-open-p :initform nil
            :type boolean)
    (visible-rows :initarg :visible-rows :accessor select-widget-visible-rows
                  :initform 5 :type integer)
@@ -187,6 +187,13 @@ sharing their rendering or event policies."
 This value is internal selection state kept within WIDGET's option count;
 use SELECT-WIDGET-SELECT to change it."
   (%select-widget-selected-index widget))
+
+(defun select-widget-open-p (widget)
+  "Return whether WIDGET's option list is open.
+
+This value pairs with the selection state that SELECT-WIDGET-SELECT
+maintains; use SELECT-WIDGET-TOGGLE to change it."
+  (%select-widget-open-p widget))
 
 (defun make-select-widget (options &key selected-index (open-p nil)
                                      (visible-rows 5) action rectangle style theme
@@ -230,10 +237,10 @@ use SELECT-WIDGET-SELECT to change it."
                     (select-widget-selected-option widget) widget)))
 
 (defun select-widget-toggle (widget)
-  (setf (select-widget-open-p widget) (not (select-widget-open-p widget)))
+  (setf (%select-widget-open-p widget) (not (%select-widget-open-p widget)))
   (%widget-action
    (select-widget-action widget)
-   (if (select-widget-open-p widget) :open :close)
+   (if (%select-widget-open-p widget) :open :close)
    (select-widget-selected-option widget) widget))
 
 (define-indexed-control-movement %select-move
@@ -254,7 +261,7 @@ use SELECT-WIDGET-SELECT to change it."
    (max 4
         (loop for option in (select-widget-options widget)
               maximize (+ 4 (string-cell-width (%control-option-label option)))))
-   (if (select-widget-open-p widget)
+   (if (%select-widget-open-p widget)
        (max 1 (min (select-widget-visible-rows widget)
                    (length (select-widget-options widget))))
        1)))
@@ -269,7 +276,7 @@ use SELECT-WIDGET-SELECT to change it."
          (selected (%select-widget-selected-index widget)))
     (surface-fill-rectangle surface rectangle #\Space
                              (%widget-role-style widget :background))
-    (if (select-widget-open-p widget) (let* ((count (length options))
+    (if (%select-widget-open-p widget) (let* ((count (length options))
                (visible (min count (select-widget-visible-rows widget)))
                (start (%select-visible-start widget)))
           (loop for offset from 0 below visible
@@ -302,7 +309,7 @@ use SELECT-WIDGET-SELECT to change it."
     (setf (getf info :label)
           (or (getf info :label) "Select"))
     (setf (getf info :state)
-          (list :open-p (select-widget-open-p widget)
+          (list :open-p (%select-widget-open-p widget)
                 :selected-index (%select-widget-selected-index widget)
                 :selected-option (select-widget-selected-option widget)
                 :options (mapcar #'%control-option-label
@@ -319,26 +326,26 @@ use SELECT-WIDGET-SELECT to change it."
      (%select-move widget 1))
     ((and (typep event 'key-event)
           (member (key-event-key event) '(:enter :return :space)))
-     (if (select-widget-open-p widget)
+     (if (%select-widget-open-p widget)
          (let ((action (select-widget-select
                         widget (or (%select-widget-selected-index widget) 0))))
-           (setf (select-widget-open-p widget) nil)
+           (setf (%select-widget-open-p widget) nil)
            action)
          (select-widget-toggle widget)))
     ((and (typep event 'key-event)
           (eq (key-event-key event) :escape)
-          (select-widget-open-p widget))
-     (setf (select-widget-open-p widget) nil)
+          (%select-widget-open-p widget))
+     (setf (%select-widget-open-p widget) nil)
      (close-action nil widget))
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
            (widget-rectangle widget) (mouse-event-x event)
            (mouse-event-y event)))
-     (if (select-widget-open-p widget) (let ((index (+ (%select-visible-start widget)
+     (if (%select-widget-open-p widget) (let ((index (+ (%select-visible-start widget)
                          (- (mouse-event-y event)
                             (rectangle-y (widget-rectangle widget))))))
            (when (and (>= index 0) (< index (length (select-widget-options widget))))
              (let ((action (select-widget-select widget index)))
-               (setf (select-widget-open-p widget) nil)
+               (setf (%select-widget-open-p widget) nil)
                action))) (select-widget-toggle widget)))))

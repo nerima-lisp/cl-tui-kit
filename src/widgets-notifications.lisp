@@ -11,7 +11,7 @@
 
 (defclass notification-center-widget (widget)
   ((notifications :initarg :notifications
-                  :accessor notification-center-notifications :initform nil)
+                  :accessor %notification-center-notifications :initform nil)
    (next-id :initarg :next-id :initform 0)
    (max-visible :initarg :max-visible :initform 5)
    (placement :initarg :placement :initform :top)))
@@ -34,6 +34,13 @@
                  :accessible-description accessible-description
                  :accessible-help-text accessible-help-text))
 
+(defun notification-center-notifications (widget)
+  "Return a fresh list of WIDGET's active notifications.
+
+The returned list is a copy; mutating it does not affect WIDGET.  Use
+NOTIFICATION-CENTER-PUSH, -DISMISS, -CLEAR, or -TICK to change it."
+  (copy-list (%notification-center-notifications widget)))
+
 (defun notification-center-push (widget message &key id (level :info) expires-at)
   (check-type widget notification-center-widget)
   (let* ((notification (if (typep message 'notification)
@@ -44,40 +51,40 @@
     (unless (notification-id notification)
       (setf (notification-id notification) next-id)
       (incf (slot-value widget 'next-id)))
-    (push notification (notification-center-notifications widget))
+    (push notification (%notification-center-notifications widget))
     notification))
 
 (defun notification-center-dismiss (widget id)
   (check-type widget notification-center-widget)
-  (let ((before (length (notification-center-notifications widget))))
-    (setf (notification-center-notifications widget)
+  (let ((before (length (%notification-center-notifications widget))))
+    (setf (%notification-center-notifications widget)
           (remove-if (lambda (notification)
                        (or (eq notification id)
                            (equal (notification-id notification) id)))
-                     (notification-center-notifications widget)))
-    (= before (1+ (length (notification-center-notifications widget))))))
+                     (%notification-center-notifications widget)))
+    (= before (1+ (length (%notification-center-notifications widget))))))
 
 (defun notification-center-clear (widget)
   (check-type widget notification-center-widget)
-  (setf (notification-center-notifications widget) nil)
+  (setf (%notification-center-notifications widget) nil)
   widget)
 
 (defun notification-center-tick (widget &optional time)
   (check-type widget notification-center-widget)
-  (let ((before (length (notification-center-notifications widget))))
+  (let ((before (length (%notification-center-notifications widget))))
     (when (numberp time)
-      (setf (notification-center-notifications widget)
+      (setf (%notification-center-notifications widget)
             (remove-if (lambda (notification)
                          (and (numberp (notification-expires-at notification))
                               (<= (notification-expires-at notification) time)))
-                       (notification-center-notifications widget))))
-    (- before (length (notification-center-notifications widget)))))
+                       (%notification-center-notifications widget))))
+    (- before (length (%notification-center-notifications widget)))))
 
 (defmethod widget-preferred-size ((widget notification-center-widget))
   (make-size 32 (max 1 (slot-value widget 'max-visible))))
 
 (defun %notification-visible-list (widget)
-  (let* ((all (notification-center-notifications widget))
+  (let* ((all (%notification-center-notifications widget))
          (visible (subseq all 0 (min (length all)
                                      (slot-value widget 'max-visible)))))
     (if (eq (slot-value widget 'placement) :bottom)
@@ -88,12 +95,12 @@
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :status))
     (setf (getf info :state)
-          (list :count (length (notification-center-notifications widget))
+          (list :count (length (%notification-center-notifications widget))
                 :messages (mapcar (lambda (notification)
                                     (list :id (notification-id notification)
                                           :level (notification-level notification)
                                           :message (notification-message notification)))
-                                  (notification-center-notifications widget))))
+                                  (%notification-center-notifications widget))))
     info))
 
 (defmethod widget-render ((widget notification-center-widget) surface)

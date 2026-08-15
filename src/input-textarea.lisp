@@ -13,9 +13,17 @@
                       :accessor textarea-widget-submit-on-enter-p
                       :initform nil
                       :type boolean)
-   (line-scroll-offset :accessor textarea-widget-line-scroll-offset
+   (line-scroll-offset :accessor %textarea-widget-line-scroll-offset
                        :initform 0
                        :type integer)))
+
+(defun textarea-widget-line-scroll-offset (widget)
+  "Return WIDGET's current line-scroll offset.
+
+This value is internal scroll state that WIDGET recomputes on every render
+and cursor-position query to keep the cursor visible; it has no direct
+setter."
+  (%textarea-widget-line-scroll-offset widget))
 
 (defun make-textarea-widget (&key (value "") placeholder id
                                   (preferred-rows 4) (soft-wrap-p t)
@@ -149,13 +157,13 @@ is a cons of its inclusive start and exclusive end index."
          (segment (%textarea-segment-at-cursor segments cursor))
          (index (%textarea-segment-index segments segment))
          (height (rectangle-height (widget-rectangle widget)))
-         (offset (textarea-widget-line-scroll-offset widget)))
+         (offset (%textarea-widget-line-scroll-offset widget)))
     (when (plusp height)
       (setf offset
             (max 0
                  (min index
                       (max 0 (- (1+ index) height)))))
-      (setf (textarea-widget-line-scroll-offset widget) offset))
+      (setf (%textarea-widget-line-scroll-offset widget) offset))
     index))
 
 (defmethod widget-preferred-size ((widget textarea-widget))
@@ -177,7 +185,7 @@ is a cons of its inclusive start and exclusive end index."
          (segments (%textarea-segments widget))
          (value (input-widget-value widget))
          (style (%widget-role-style widget :foreground))
-         (row-offset (textarea-widget-line-scroll-offset widget)))
+         (row-offset (%textarea-widget-line-scroll-offset widget)))
     (%textarea-ensure-cursor-visible widget segments)
     (surface-fill-rectangle surface rectangle #\Space style)
     (multiple-value-bind (selection-start selection-end)
@@ -207,7 +215,7 @@ is a cons of its inclusive start and exclusive end index."
     (let* ((cursor (input-widget-cursor widget))
            (segment (%textarea-segment-at-cursor segments cursor))
            (row-index (%textarea-segment-index segments segment))
-           (row (+ y (- row-index (textarea-widget-line-scroll-offset widget))))
+           (row (+ y (- row-index (%textarea-widget-line-scroll-offset widget))))
            (cursor-column (min (max 0 (1- (max 1 (rectangle-width rectangle))))
                                (%textarea-cursor-column widget segment))))
       (when (and (>= row y) (< row bottom) (< x right))
@@ -224,7 +232,7 @@ is a cons of its inclusive start and exclusive end index."
          (segment (%textarea-segment-at-cursor
                    segments (input-widget-cursor widget)))
           (row-index (%textarea-segment-index segments segment))
-         (row (- row-index (textarea-widget-line-scroll-offset widget)))
+         (row (- row-index (%textarea-widget-line-scroll-offset widget)))
          (height (rectangle-height rectangle))
          (width (rectangle-width rectangle)))
     (when (and (plusp height) (plusp width) (>= row 0) (< row height))

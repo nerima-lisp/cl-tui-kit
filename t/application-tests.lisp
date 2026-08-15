@@ -72,8 +72,11 @@
       (application-run application (lambda () (pop events)))
       (is-equal "xy" (input-widget-value input))
       (is (not (application-running-p application))))
-    (setf (widget-rectangle button) (test-rectangle 0 0 5 1)
-          (widget-rectangle input) (test-rectangle 0 1 5 1))
+    ;; Position the widgets directly, bypassing layout: WIDGET-RECTANGLE now
+    ;; returns a copy, so only the internal accessor can reposition a widget
+    ;; without running a layout pass.
+    (setf (cl-tui-kit/widgets::%widget-rectangle button) (test-rectangle 0 0 5 1)
+          (cl-tui-kit/widgets::%widget-rectangle input) (test-rectangle 0 1 5 1))
     (application-refresh-focus-tree application)
     (let ((action (application-dispatch-event
                    application (make-mouse-event 1 0))))

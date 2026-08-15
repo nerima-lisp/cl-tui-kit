@@ -14,7 +14,7 @@
   ((items :initarg :items :accessor menu-widget-items :initform nil)
    (selected-index :initarg :selected-index
                    :accessor %menu-widget-selected-index :initform 0)
-   (open-p :initarg :open-p :accessor menu-widget-open-p :initform nil)
+   (open-p :initarg :open-p :accessor %menu-widget-open-p :initform nil)
    (active-submenu :initarg :active-submenu
                    :accessor %menu-widget-active-submenu :initform nil)))
 
@@ -32,10 +32,19 @@ This value tracks WIDGET's selected index and is updated together with it;
 use MENU-WIDGET-SELECT to change it."
   (%menu-widget-active-submenu widget))
 
+(defun menu-widget-open-p (widget)
+  "Return whether WIDGET's active submenu is open.
+
+This value pairs with WIDGET's active submenu (see MENU-WIDGET-ACTIVE-SUBMENU)
+and is kept in sync with WIDGET's child through %MENU-SYNC-CHILD; it changes
+only through WIDGET-HANDLE-EVENT's own key handling, which has no separate
+public setter."
+  (%menu-widget-open-p widget))
+
 (defun %menu-sync-child (widget)
-  (let ((submenu (and (menu-widget-open-p widget)
+  (let ((submenu (and (%menu-widget-open-p widget)
                       (%menu-widget-active-submenu widget))))
-    (setf (widget-children widget) (and submenu (list submenu)))
+    (setf (%widget-children widget) (and submenu (list submenu)))
     submenu))
 
 (defun %menu-first-enabled (items)
@@ -94,10 +103,10 @@ use MENU-WIDGET-SELECT to change it."
     (make-size width (max 1 (length (menu-widget-items widget))))))
 
 (defmethod widget-layout ((widget menu-widget) rectangle)
-  (setf (widget-rectangle widget) (copy-rectangle rectangle))
-  (let ((submenu (and (menu-widget-open-p widget) (menu-widget-active-submenu widget))))
+  (setf (%widget-rectangle widget) (copy-rectangle rectangle))
+  (let ((submenu (and (%menu-widget-open-p widget) (menu-widget-active-submenu widget))))
     (when submenu
-      (let* ((area (widget-rectangle widget))
+      (let* ((area (%widget-rectangle widget))
              (width (min (rectangle-width area) (size-width
                                                    (widget-preferred-size submenu))))
              (child-area (make-rectangle (max (rectangle-x area)
@@ -108,7 +117,7 @@ use MENU-WIDGET-SELECT to change it."
   widget)
 
 (defmethod widget-render ((widget menu-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (items (menu-widget-items widget))
          (style (%widget-role-style widget :foreground))
          (selected-style (%widget-role-style widget :accent))
@@ -126,7 +135,7 @@ use MENU-WIDGET-SELECT to change it."
                                                     selected-style)
                                                    (t style))
                                  :max-width (rectangle-width area)))
-    (let ((submenu (and (menu-widget-open-p widget)
+    (let ((submenu (and (%menu-widget-open-p widget)
                         (%menu-widget-active-submenu widget))))
       (when submenu (widget-render submenu surface))))
   widget)
@@ -136,7 +145,7 @@ use MENU-WIDGET-SELECT to change it."
     (or (getf info :role) (setf (getf info :role) :menu))
     (setf (getf info :state)
           (list :selected-index (%menu-widget-selected-index widget)
-                :open-p (menu-widget-open-p widget)
+                :open-p (%menu-widget-open-p widget)
                 :items (mapcar (lambda (item)
                                  (list :key (menu-item-key item)
                                        :label (menu-item-label item)
@@ -160,7 +169,7 @@ use MENU-WIDGET-SELECT to change it."
                  do (menu-widget-select widget candidate)
                     (return (move-action :down 1 widget)))))
       ((equalp key :escape)
-       (setf (menu-widget-open-p widget) nil)
+       (setf (%menu-widget-open-p widget) nil)
        (%menu-sync-child widget)
        (close-action nil widget))
       ((member key '(:right :enter :return) :test #'equalp)
@@ -169,16 +178,16 @@ use MENU-WIDGET-SELECT to change it."
          (when item
            (if (menu-item-submenu item)
                (progn
-                 (setf (menu-widget-open-p widget) t)
+                 (setf (%menu-widget-open-p widget) t)
                  (menu-widget-select widget (%menu-widget-selected-index widget))
                  (open-action (menu-item-key item) widget))
                (%menu-item-action widget item)))))
       ((and (typep event 'mouse-event)
             (eq (mouse-event-kind event) :press)
             (rectangle-contains-point-p
-             (widget-rectangle widget)
+             (%widget-rectangle widget)
              (make-point (mouse-event-x event) (mouse-event-y event))))
-       (let* ((area (widget-rectangle widget))
+       (let* ((area (%widget-rectangle widget))
               (row (- (mouse-event-y event) (rectangle-y area))))
          (when (and (<= 0 row) (< row (length (menu-widget-items widget)))
                     (menu-widget-select widget row))

@@ -35,7 +35,7 @@
                              event #'identity))
 
 (defun %dispatch-tab-event (application event)
-  (let ((tree (application-focus-tree application)))
+  (let ((tree (%application-focus-tree application)))
     (if (member :shift (key-event-modifiers event) :test #'eq)
         (focus-previous tree)
         (focus-next tree))))
