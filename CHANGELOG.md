@@ -11,6 +11,40 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [2.0.0]
+
+Completes the read-only conversion that 1.0.0 applied to only part of the
+tree.
+
+### Changed
+
+- The ANSI backend's terminal-mode accessors — `ansi-backend-mouse-mode`,
+  `ansi-backend-mouse-sgr-p`, `ansi-backend-bracketed-paste-enabled-p`,
+  `ansi-backend-focus-reporting-enabled-p`,
+  `ansi-backend-kitty-keyboard-flags`,
+  `ansi-backend-synchronized-updates-enabled-p` — and the backend lifecycle
+  accessors `backend-state` and `backend-last-error` are now read-only.
+  Each records state the toolkit also acted on: a mode accessor is paired
+  with an escape sequence already written to the terminal, and the lifecycle
+  accessors are paired with what `backend-open`, `backend-close`, and
+  `backend-fail` did. Writing one directly desynchronised the record from
+  the action, so the next disable emitted the wrong sequence or none at all.
+  Use the `ansi-enable-*` and `ansi-disable-*` pairs, and `backend-open` /
+  `backend-close` / `backend-fail`.
+- `backend-capability-states` is read-only and returns a fresh copy of the
+  table. Handing back the live table let a caller write an unvalidated state
+  straight past `backend-set-capability-state`, which is where a capability
+  name and a state keyword are checked. Use that function instead.
+
+  **Breaking.** `setf` on those nine symbols no longer compiles, and mutating
+  the table `backend-capability-states` returns no longer reaches the
+  backend. This is a
+  major bump rather than a deprecation cycle because 1.0.0 was published
+  minutes earlier, is not on Quicklisp, and has no known consumer — the
+  deprecation window in the stability policy exists to give users time, and
+  there are none to give it to. Freezing a known-desynchronisable accessor
+  for a whole major version was the worse trade.
+
 ## [1.0.0]
 
 First stable release.
@@ -70,5 +104,6 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/nerima-lisp/cl-tui-kit/releases/tag/v1.0.0

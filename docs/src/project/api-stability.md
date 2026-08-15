@@ -71,6 +71,29 @@ the underlying state instead — a dedicated mutator such as
 `surface-set-clip`, or a reset function such as `reset-keymap-state` or
 `terminal-input-parser-reset`.
 
+**Deciding whether a new accessor falls under this rule.** It does when some
+sanctioned function maintains an invariant behind the slot that a raw writer
+would bypass — the slot is not just storage, but state a specific piece of
+code keeps consistent with something else (another slot, a side effect
+already performed, an external resource). If no such invariant exists, an
+ordinary read/write accessor is the right shape; making it read-only would
+add friction without a matching safety.
+
+The codebase expresses this in two shapes:
+
+- A `defstruct` slot renamed with a `%` prefix, excluded from the exported
+  accessor name, with the public reader defined as an ordinary `defun`. For
+  example, `terminal-input-parser`'s `%buffer` slot is never exported;
+  `terminal-input-parser-buffer` is a `defun` that returns a defensive copy
+  of it, and the slot can only be cleared — in a way that keeps the
+  parser's other buffers consistent — through `terminal-input-parser-reset`.
+- A `defclass` slot declared with `:reader` and a separate, unexported
+  `:writer (setf %name)`. For example, `backend`'s `state` slot is declared
+  with `:reader backend-state` and `:writer (setf %backend-state)`; only
+  `backend-open`, `backend-close`, and `backend-fail` call that `setf`
+  form, so an external caller only ever observes `backend-state` change
+  through the lifecycle those functions enforce.
+
 Because only the read behavior is part of the documented contract, the
 representation behind a read-only accessor — which slot backs it, how it is
 stored — stays free to change within a major version without that being a
