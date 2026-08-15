@@ -122,7 +122,7 @@ sharing their rendering or event policies."
    (max 1 (length (radio-widget-options widget)))))
 
 (defmethod widget-render ((widget radio-widget) surface)
-  (let* ((rectangle (widget-rectangle widget))
+  (let* ((rectangle (%widget-rectangle widget))
          (x (rectangle-x rectangle))
          (y (rectangle-y rectangle))
          (right (+ x (rectangle-width rectangle)))
@@ -177,10 +177,10 @@ sharing their rendering or event policies."
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
-           (widget-rectangle widget) (mouse-event-x event)
+           (%widget-rectangle widget) (mouse-event-x event)
            (mouse-event-y event)))
      (let ((index (- (mouse-event-y event)
-                     (rectangle-y (widget-rectangle widget)))))
+                     (rectangle-y (%widget-rectangle widget)))))
        (when (and (>= index 0) (< index (length (radio-widget-options widget))))
          (radio-widget-select widget index))))))
 
@@ -294,7 +294,7 @@ maintains; use SELECT-WIDGET-TOGGLE to change it."
        1)))
 
 (defmethod widget-render ((widget select-widget) surface)
-  (let* ((rectangle (widget-rectangle widget))
+  (let* ((rectangle (%widget-rectangle widget))
          (x (rectangle-x rectangle))
          (y (rectangle-y rectangle))
          (right (+ x (rectangle-width rectangle)))
@@ -367,11 +367,11 @@ maintains; use SELECT-WIDGET-TOGGLE to change it."
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
-           (widget-rectangle widget) (mouse-event-x event)
+           (%widget-rectangle widget) (mouse-event-x event)
            (mouse-event-y event)))
      (if (%select-widget-open-p widget) (let ((index (+ (%select-visible-start widget)
                          (- (mouse-event-y event)
-                            (rectangle-y (widget-rectangle widget))))))
+                            (rectangle-y (%widget-rectangle widget))))))
            (when (and (>= index 0) (< index (length (select-widget-options widget))))
              (let ((action (select-widget-select widget index)))
                (select-widget-toggle widget)

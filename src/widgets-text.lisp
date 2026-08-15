@@ -67,7 +67,7 @@
                  :accessible-help-text accessible-help-text))
 
 (defun %text-view-lines (widget)
-  (let ((width (max 1 (rectangle-width (widget-rectangle widget)))))
+  (let ((width (max 1 (rectangle-width (%widget-rectangle widget)))))
     (if (text-view-widget-wrap-p widget)
         (mapcan (lambda (line) (%wrap-widget-line line width))
                 (%split-widget-lines (text-view-widget-text widget)))
@@ -82,7 +82,7 @@ to change it."
   (%text-view-widget-offset widget))
 
 (defun %text-view-clamp-offset (widget offset)
-  (let* ((height (max 0 (rectangle-height (widget-rectangle widget))))
+  (let* ((height (max 0 (rectangle-height (%widget-rectangle widget))))
          (maximum (max 0 (- (length (%text-view-lines widget)) height))))
     (max 0 (min maximum offset))))
 
@@ -128,7 +128,7 @@ to change it."
     info))
 
 (defmethod widget-render ((widget text-view-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (style (%widget-role-style widget :foreground))
          (lines (%text-view-lines widget))
          (offset (%text-view-widget-offset widget)))
@@ -152,11 +152,11 @@ to change it."
        (move-action :down 1 widget))
       ((equalp key :page-up)
        (text-view-widget-scroll-by widget (- (max 1 (rectangle-height
-                                                       (widget-rectangle widget)))))
+                                                       (%widget-rectangle widget)))))
        (move-action :page-up 1 widget))
       ((equalp key :page-down)
        (text-view-widget-scroll-by widget (max 1 (rectangle-height
-                                                   (widget-rectangle widget))))
+                                                   (%widget-rectangle widget))))
        (move-action :page-down 1 widget))
       ((equalp key :home)
        (text-view-widget-scroll-to widget 0)
@@ -167,7 +167,7 @@ to change it."
       ((and (typep event 'mouse-event)
             (eq (mouse-event-kind event) :press)
             (rectangle-contains-point-p
-             (widget-rectangle widget)
+             (%widget-rectangle widget)
              (make-point (mouse-event-x event) (mouse-event-y event)))
             (member (mouse-event-button event)
                     '(:wheel-up :scroll-up :wheel-down :scroll-down)

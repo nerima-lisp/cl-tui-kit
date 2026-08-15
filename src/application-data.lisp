@@ -56,7 +56,7 @@ it."
               :widget current
               :children (mapcar #'build
                                 (widget-interactive-children current))
-              :rectangle (widget-rectangle current)
+              :rectangle (%widget-rectangle current)
               :focusable-p (and (widget-active-p current)
                                 (widget-enabled-p current)
                                 (widget-focusable-p current)))))
@@ -103,7 +103,7 @@ it."
   (let ((widget (focus-node-widget node)))
     (when widget
       (setf (focus-node-rectangle node) (copy-rectangle
-                                         (widget-rectangle widget)))))
+                                         (%widget-rectangle widget)))))
   (dolist (child (focus-node-children node))
     (%sync-focus-node-rectangles child)))
 

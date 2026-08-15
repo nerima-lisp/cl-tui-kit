@@ -11,6 +11,35 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [4.1.2]
+
+### Fixed
+
+- The toolkit was calling its own copy-returning readers on the render path.
+  When `widget-rectangle` and `widget-children` became copying readers, the
+  call sites inside `src/widgets.lisp` were repointed at the private
+  accessors, but 48 more across twelve other files were not — so every frame
+  allocated a fresh rectangle per widget, and a fresh list wherever children
+  were walked. `%table-widths`, called on every table render, was among them.
+
+  All 48 now read through the private accessor. Behaviour is unchanged; this
+  is purely removing allocation the library was doing to itself. External
+  callers still get a copy, which is the point of the reader.
+
+  One redundant double-copy in `surface.lisp`'s clip handling is removed for
+  the same reason.
+
+### Known
+
+- Five copying readers are still called internally and were left alone,
+  because each needs a decision rather than a substitution: `backend-size`,
+  `backend-capabilities`, `focus-node-children`, and `surface-clip` are read
+  from a package other than the one defining their private accessor, so
+  repointing means either exporting a `%`-prefixed symbol or reaching across
+  packages with `::`, neither of which has precedent here. `theme-style` has
+  no private accessor at all and is called from `%widget-role-style` on
+  nearly every widget render, which makes it the largest of the five.
+
 ## [4.1.1]
 
 ### Fixed
@@ -259,7 +288,8 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.1...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.2...HEAD
+[4.1.2]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.1...v4.1.2
 [4.1.1]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.0...v4.1.1
 [4.1.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v3.0.0...v4.0.0

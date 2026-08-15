@@ -199,7 +199,7 @@ WIDGET's rendered size and has no direct setter."
     (and item (%tree-visible-item-index item))))
 
 (defun %tree-visible-row-count (widget)
-  (max 1 (rectangle-height (widget-rectangle widget))))
+  (max 1 (rectangle-height (%widget-rectangle widget))))
 
 (defun %tree-set-index (widget index)
   (let* ((model (%tree-widget-model widget))
@@ -259,7 +259,7 @@ WIDGET's rendered size and has no direct setter."
   (make-size 30 10))
 
 (defmethod widget-render ((widget tree-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (model (%tree-widget-model widget))
          (base-style (%widget-role-style widget :foreground))
          (selected-style (merge-styles base-style
@@ -331,9 +331,9 @@ WIDGET's rendered size and has no direct setter."
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
-           (widget-rectangle widget)
+           (%widget-rectangle widget)
            (make-point (mouse-event-x event) (mouse-event-y event))))
-     (let* ((area (widget-rectangle widget))
+     (let* ((area (%widget-rectangle widget))
             (row (- (mouse-event-y event) (rectangle-y area)))
             (index (+ (%tree-widget-offset widget) row))
             (count (%tree-visible-count (%tree-widget-model widget))))

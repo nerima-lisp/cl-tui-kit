@@ -136,14 +136,14 @@ TABLE-WIDGET-SET-ROWS to replace WIDGET's rows."
 (defun %table-widths (widget)
   (let* ((columns (table-widget-columns widget))
          (rows (%table-widget-rows widget))
-         (area-width (max 0 (rectangle-width (widget-rectangle widget))))
+         (area-width (max 0 (rectangle-width (%widget-rectangle widget))))
          (widths (%table-natural-widths columns rows)))
     (%table-expand-widths
      (%table-shrink-widths columns widths area-width)
      area-width)))
 
 (defun %table-column-at-x (widget x)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (offset (- x (rectangle-x area))))
     (when (and (<= 0 offset)
                (< offset (rectangle-width area)))
@@ -155,7 +155,7 @@ TABLE-WIDGET-SET-ROWS to replace WIDGET's rows."
             do (incf consumed width)))))
 
 (defun %table-visible-row-count (widget)
-  (let* ((height (rectangle-height (widget-rectangle widget)))
+  (let* ((height (rectangle-height (%widget-rectangle widget)))
          (header-height (if (slot-value widget 'header-p) 1 0)))
     (max 1 (floor (max 0 (- height header-height))
                   (slot-value widget 'row-height)))))
@@ -225,7 +225,7 @@ TABLE-WIDGET-SET-ROWS to replace WIDGET's rows."
   (%table-ensure-selected-row-visible widget))
 
 (defmethod widget-render ((widget table-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (columns (table-widget-columns widget))
          (rows (%table-widget-rows widget))
          (widths (%table-widths widget))
@@ -348,9 +348,9 @@ TABLE-WIDGET-SET-ROWS to replace WIDGET's rows."
 (defun %table-handle-mouse-event (widget event)
   (when (and (eq (mouse-event-kind event) :press)
              (rectangle-contains-point-p
-              (widget-rectangle widget)
+              (%widget-rectangle widget)
               (make-point (mouse-event-x event) (mouse-event-y event))))
-    (let* ((area (widget-rectangle widget))
+    (let* ((area (%widget-rectangle widget))
            (rows (%table-widget-rows widget))
            (header-offset (if (slot-value widget 'header-p) 1 0))
            (local-row (floor (- (mouse-event-y event) (rectangle-y area)
