@@ -113,7 +113,7 @@ run."))
           :writer (setf %tty-runtime-eof-p))
    (queue :initform nil
           :reader tty-runtime-queue
-          :writer (setf %tty-runtime-queue))
+          :accessor %tty-runtime-queue)
    (last-error :initform nil
               :reader tty-runtime-last-error
               :writer (setf %tty-runtime-last-error))))
