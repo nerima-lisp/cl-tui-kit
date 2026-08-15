@@ -33,17 +33,18 @@ env:
   # coverage job prints and set these to floor(100*X/Y) and floor(100*A/B)
   # (or lower, to leave headroom).
   #
-  # The floor has never been measured -- sbcl could not be run in the
-  # environment this workflow was authored in -- so both start as the
-  # sentinel UNSET rather than a numeric 0. Shipping 0 would look like an
-  # active gate while actually accepting any coverage percentage, which is
-  # worse than no gate at all: it would read as verified when it verifies
-  # nothing. UNSET instead makes the coverage job run without enforcing a
-  # threshold (so the true numbers are printed) and then fail explicitly, so
-  # the first run reports the measurement and a human must commit the real
-  # floor before this gate goes green.
-  CL_TUI_KIT_MIN_EXPRESSION_COVERAGE: "UNSET"
-  CL_TUI_KIT_MIN_BRANCH_COVERAGE: "UNSET"
+  # Measured on x86_64-linux by this job's own bootstrap run: expressions
+  # 16205/16849 (96.1%), branches 1690/1946 (86.8%). The floors below sit
+  # about a point under each so a property test's generator drawing a
+  # different sample cannot turn a real pass red, while a genuine regression
+  # still trips the gate. Raise them when coverage improves; a value that is
+  # lowered to turn a red run green defeats the ratchet.
+  #
+  # The sentinel UNSET is still honoured: setting either back to it makes the
+  # job print the measurement and fail, which is how the floor was obtained
+  # in the first place.
+  CL_TUI_KIT_MIN_EXPRESSION_COVERAGE: "95"
+  CL_TUI_KIT_MIN_BRANCH_COVERAGE: "85"
 
 jobs:
   # Mirrors the local `nix flake check` documented in

@@ -33,13 +33,17 @@ these in as a ratchet: the floor may only move up as coverage improves,
 never down to turn a red run green.
 
 The floor is defined once, in the `env:` block at the top of
-`.github/workflows/ci.yml`, as the sentinel value `UNSET` until a human
-replaces it with a measured number. While either value is still `UNSET`,
-the coverage job runs without enforcing a threshold (so the true numbers are
-printed) and then fails the job outright with an actionable message,
-because a floor of `0` would look like an active gate while accepting any
-coverage percentage — worse than no gate, since it would read as verified
-when it verifies nothing.
+`.github/workflows/ci.yml`. It is set to a measured value taken from this
+job's own output, kept a little under the measurement so a property test's
+generator drawing a different sample cannot turn a real pass red.
+
+Either value may be set back to the sentinel `UNSET` to re-measure. While
+either is `UNSET`, the coverage job runs without enforcing a threshold — so
+the true numbers are printed — and then fails outright with an actionable
+message. That is how the floor was first obtained, and it is deliberate: a
+floor of `0` would look like an active gate while accepting any coverage
+percentage, which is worse than no gate because it reads as verified when it
+verifies nothing.
 
 To raise the floor:
 

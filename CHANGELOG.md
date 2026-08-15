@@ -25,9 +25,10 @@ First stable release.
 - A non-Nix CI path alongside the existing `nix flake check` gate, wired
   with a coverage ratchet: the `coverage` job rejects an empty test
   selection and an empty instrumented source set, prints the measured
-  expression and branch coverage, and fails outright until a human replaces
-  the threshold sentinel with a measured floor — a permissive default would
-  look like an active gate while enforcing nothing.
+  expression and branch coverage, and enforces a floor set from that
+  measurement. Until a floor was measured the job deliberately failed rather
+  than defaulting to a permissive value, which would have looked like an
+  active gate while enforcing nothing.
 
 ### Changed
 
