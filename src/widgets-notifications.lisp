@@ -104,7 +104,7 @@ NOTIFICATION-CENTER-PUSH, -DISMISS, -CLEAR, or -TICK to change it."
     info))
 
 (defmethod widget-render ((widget notification-center-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (style (%widget-role-style widget :accent))
          (notifications (%notification-visible-list widget))
          (start (if (eq (slot-value widget 'placement) :bottom)
@@ -135,9 +135,9 @@ NOTIFICATION-CENTER-PUSH, -DISMISS, -CLEAR, or -TICK to change it."
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
-           (widget-rectangle widget)
+           (%widget-rectangle widget)
            (make-point (mouse-event-x event) (mouse-event-y event))))
-     (let* ((area (widget-rectangle widget))
+     (let* ((area (%widget-rectangle widget))
             (notifications (%notification-visible-list widget))
             (start (if (eq (slot-value widget 'placement) :bottom)
                        (- (rectangle-height area) (length notifications))

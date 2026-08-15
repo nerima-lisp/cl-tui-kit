@@ -113,7 +113,7 @@ rectangle to the surface's own bounds."
   (let ((rectangle (typecase clip
                      (null default)
                      (rectangle clip)
-                     (clipping-region (clipping-region-rectangle clip))
+                     (clipping-region (clipping-region-%rectangle clip))
                      (t (error 'invalid-type-error
                                :context 'clip
                                :datum clip

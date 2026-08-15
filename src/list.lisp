@@ -113,7 +113,7 @@ setter."
   (%list-selected-index widget))
 
 (defun %list-visible-row-count (widget)
-  (max 1 (floor (rectangle-height (widget-rectangle widget))
+  (max 1 (floor (rectangle-height (%widget-rectangle widget))
                 (list-widget-row-height widget))))
 
 (defun %list-set-index (widget index)
@@ -124,7 +124,7 @@ setter."
              (item (list-model-item-at model actual))
              (key (list-model-key-at model item actual)))
         (setf (%list-widget-selected-key widget) key)
-        (let* ((height (rectangle-height (widget-rectangle widget)))
+        (let* ((height (rectangle-height (%widget-rectangle widget)))
                (row-height (list-widget-row-height widget))
                (rows (max 1 (floor height row-height)))
                (max-offset (max 0 (- count rows)))
@@ -142,7 +142,7 @@ setter."
   (let ((index (%list-index-for-key widget key)))
     (when index
       (%list-set-index widget index)
-      (let* ((height (rectangle-height (widget-rectangle widget)))
+      (let* ((height (rectangle-height (%widget-rectangle widget)))
              (rows (max 1 (floor height (list-widget-row-height widget)))))
         (setf (%list-widget-offset widget)
               (max 0 (min (%list-widget-offset widget)
@@ -184,7 +184,7 @@ setter."
 Each result is a plist with :INDEX, :ITEM, :KEY, and :LABEL.  The model is
 queried lazily; no complete list is materialized."
   (let* ((model (list-widget-model widget))
-         (height (rectangle-height (widget-rectangle widget)))
+         (height (rectangle-height (%widget-rectangle widget)))
          (row-height (list-widget-row-height widget))
          (rows (if (plusp row-height) (ceiling height row-height) 0))
          (start (min (%list-widget-offset widget) (list-model-count model))))
@@ -205,7 +205,7 @@ queried lazily; no complete list is materialized."
                10)))
 
 (defmethod widget-render ((widget list-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (row-height (list-widget-row-height widget))
          (base-style (%widget-role-style widget :foreground))
          (selected-style (merge-styles base-style
@@ -269,9 +269,9 @@ queried lazily; no complete list is materialized."
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
-           (widget-rectangle widget)
+           (%widget-rectangle widget)
            (make-point (mouse-event-x event) (mouse-event-y event))))
-     (let* ((area (widget-rectangle widget))
+     (let* ((area (%widget-rectangle widget))
             (row (floor (- (mouse-event-y event) (rectangle-y area))
                         (list-widget-row-height widget)))
             (index (+ (%list-widget-offset widget) row))

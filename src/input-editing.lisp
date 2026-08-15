@@ -264,7 +264,7 @@ WIDGET's rendered size and has no direct setter."
       (%input-delete-range widget start end))))
 
 (defun %input-ensure-cursor-visible (widget)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (width (max 0 (rectangle-width area)))
          (column (%input-cursor-column widget))
          (offset (max 0 (%input-widget-scroll-offset widget))))
@@ -278,7 +278,7 @@ WIDGET's rendered size and has no direct setter."
 
 (defmethod widget-cursor-position ((widget input-widget))
   (%input-ensure-cursor-visible widget)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (width (rectangle-width area))
          (x (+ (rectangle-x area)
                (- (%input-cursor-column widget)
@@ -340,7 +340,7 @@ WIDGET's rendered size and has no direct setter."
   (member modifier (key-event-modifiers event) :test #'eq))
 
 (defmethod widget-render ((widget input-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (value (input-widget-value widget))
          (width (max 0 (rectangle-width area))))
     (%input-ensure-cursor-visible widget)

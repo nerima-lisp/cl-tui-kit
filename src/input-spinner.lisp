@@ -96,7 +96,7 @@ SPINNER-WIDGET-TICK and WIDGET-RENDER below."
    1))
 
 (defmethod widget-render ((widget spinner-widget) surface)
-  (let ((rectangle (widget-rectangle widget))
+  (let ((rectangle (%widget-rectangle widget))
         (frame (spinner-widget-current-frame widget)))
     (surface-fill-rectangle surface rectangle #\Space
                              (%widget-role-style widget :background))
@@ -127,6 +127,6 @@ SPINNER-WIDGET-TICK and WIDGET-RENDER below."
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
-           (widget-rectangle widget) (mouse-event-x event)
+           (%widget-rectangle widget) (mouse-event-x event)
            (mouse-event-y event)))
      (spinner-widget-toggle widget))))

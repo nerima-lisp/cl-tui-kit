@@ -40,7 +40,7 @@ wrapper."
 (defun widget-hit-test (widget x y)
   (when (and (widget-active-p widget)
              (widget-enabled-p widget)
-             (rectangle-contains-point-p (widget-rectangle widget) x y))
+             (rectangle-contains-point-p (%widget-rectangle widget) x y))
     (dolist (child (reverse (widget-interactive-children widget)))
       (let ((hit (widget-hit-test child x y)))
         (when hit (return-from widget-hit-test hit))))

@@ -9,7 +9,7 @@
                  :style (or style (make-style)) :theme (or theme (default-theme))))
 
 (defmethod widget-render ((widget status-bar-widget) surface)
-  (let ((area (widget-rectangle widget))
+  (let ((area (%widget-rectangle widget))
         (style (%widget-role-style widget :muted)))
     (surface-fill-rectangle surface area #\Space style)
     (surface-draw-text surface (rectangle-x area) (rectangle-y area)
@@ -36,7 +36,7 @@
                  :style (or style (make-style)) :theme (or theme (default-theme))))
 
 (defmethod widget-render ((widget scroll-bar-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (vertical (eq (slot-value widget 'orientation) :vertical))
          (length (if vertical (rectangle-height area) (rectangle-width area)))
          (track (max 1 (ceiling (* length (slot-value widget 'page-size))

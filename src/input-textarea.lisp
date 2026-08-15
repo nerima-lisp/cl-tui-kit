@@ -83,7 +83,7 @@ is supplied, while SOFT-WRAP-P controls visual line wrapping."
 Newline characters are separators and are not part of a segment.  A segment
 is a cons of its inclusive start and exclusive end index."
   (let* ((value (input-widget-value widget))
-         (line-width (max 1 (rectangle-width (widget-rectangle widget)))))
+         (line-width (max 1 (rectangle-width (%widget-rectangle widget)))))
     (loop for range in (%textarea-line-ranges value)
           append
           (let ((start (car range))
@@ -156,7 +156,7 @@ is a cons of its inclusive start and exclusive end index."
   (let* ((cursor (input-widget-cursor widget))
          (segment (%textarea-segment-at-cursor segments cursor))
          (index (%textarea-segment-index segments segment))
-         (height (rectangle-height (widget-rectangle widget)))
+         (height (rectangle-height (%widget-rectangle widget)))
          (offset (%textarea-widget-line-scroll-offset widget)))
     (when (plusp height)
       (setf offset
@@ -177,7 +177,7 @@ is a cons of its inclusive start and exclusive end index."
     (make-size width (textarea-widget-preferred-rows widget))))
 
 (defmethod widget-render ((widget textarea-widget) surface)
-  (let* ((rectangle (widget-rectangle widget))
+  (let* ((rectangle (%widget-rectangle widget))
          (x (rectangle-x rectangle))
          (y (rectangle-y rectangle))
          (right (+ x (rectangle-width rectangle)))
@@ -227,7 +227,7 @@ is a cons of its inclusive start and exclusive end index."
     surface))
 
 (defmethod widget-cursor-position ((widget textarea-widget))
-  (let* ((rectangle (widget-rectangle widget))
+  (let* ((rectangle (%widget-rectangle widget))
          (segments (%textarea-segments widget))
          (segment (%textarea-segment-at-cursor
                    segments (input-widget-cursor widget)))
@@ -273,8 +273,8 @@ is a cons of its inclusive start and exclusive end index."
       (case (key-event-key event)
         (:up -1)
         (:down 1)
-        (:page-up (- (max 1 (rectangle-height (widget-rectangle widget)))))
-        (:page-down (max 1 (rectangle-height (widget-rectangle widget)))))
+        (:page-up (- (max 1 (rectangle-height (%widget-rectangle widget)))))
+        (:page-down (max 1 (rectangle-height (%widget-rectangle widget)))))
       (%textarea-shift-p event)))
     ((and (typep event 'key-event)
           (member (key-event-key event) '(:home :end))
