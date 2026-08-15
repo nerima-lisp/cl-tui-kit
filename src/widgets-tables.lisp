@@ -9,22 +9,47 @@
 (defun make-table-column (label &key key width (min-width 1) (align :left))
   (when width
     (unless (and (integerp width) (>= width 0))
-      (error "Table column width must be a non-negative integer or NIL.")))
+      (error 'invalid-range-error :context 'width :datum width
+             :expected "a non-negative integer or NIL")))
   (check-type min-width (integer 0))
   (unless (member align '(:left :right :center) :test #'eq)
-    (error "Table column alignment must be :LEFT, :RIGHT, or :CENTER."))
+    (error 'invalid-option-error :context 'align :datum align
+           :allowed '(:left :right :center)))
   (%make-table-column (%text label) key width min-width align))
 
 (defclass table-widget (widget)
   ((columns :initarg :columns :accessor table-widget-columns :initform nil)
    (rows :initarg :rows :accessor table-widget-rows :initform nil)
-   (selected-row :initarg :selected-row :accessor table-widget-selected-row
+   (selected-row :initarg :selected-row :accessor %table-widget-selected-row
                  :initform nil)
    (selected-column :initarg :selected-column
-                    :accessor table-widget-selected-column :initform 0)
-   (row-offset :initarg :row-offset :accessor table-widget-row-offset :initform 0)
+                    :accessor %table-widget-selected-column :initform 0)
+   (row-offset :initarg :row-offset :accessor %table-widget-row-offset :initform 0)
    (header-p :initarg :header-p :initform t)
    (row-height :initarg :row-height :initform 1)))
+
+(defun table-widget-selected-row (widget)
+  "Return WIDGET's selected row index, or NIL when no row is selected.
+
+This value is internal selection state kept consistent with WIDGET's row
+count and scroll offset; use TABLE-WIDGET-SELECT-ROW to change it."
+  (%table-widget-selected-row widget))
+
+(defun table-widget-selected-column (widget)
+  "Return WIDGET's selected column index.
+
+This value is internal selection state kept within WIDGET's column count;
+use TABLE-WIDGET-SELECT-COLUMN to change it."
+  (%table-widget-selected-column widget))
+
+(defun table-widget-row-offset (widget)
+  "Return the index of the first visible row in WIDGET.
+
+This value is internal scroll state that the owning subsystem keeps
+clamped to the visible row window; it follows the selected row (see
+TABLE-WIDGET-SELECT-ROW) and WIDGET's rendered size and has no direct
+setter."
+  (%table-widget-row-offset widget))
 
 (defun make-table-widget (columns rows &key selected-row (selected-column 0)
                                       (header-p t) (row-height 1) id rectangle style
@@ -33,7 +58,8 @@
                                       accessible-help-text)
   (dolist (column columns) (check-type column table-column))
   (unless (and (integerp row-height) (plusp row-height))
-    (error "Table row height must be a positive integer."))
+    (error 'invalid-range-error :context 'row-height :datum row-height
+           :expected "a positive integer"))
   (make-instance 'table-widget :columns (copy-list columns) :rows (copy-list rows)
                  :selected-row (and rows selected-row
                                     (max 0 (min (1- (length rows)) selected-row)))
@@ -130,19 +156,19 @@
 (defun %table-clamp-row-offset (widget)
   (let* ((rows (length (table-widget-rows widget)))
          (visible (%table-visible-row-count widget)))
-    (setf (table-widget-row-offset widget)
-          (max 0 (min (table-widget-row-offset widget)
+    (setf (%table-widget-row-offset widget)
+          (max 0 (min (%table-widget-row-offset widget)
                       (max 0 (- rows visible)))))))
 
 (defun %table-ensure-selected-row-visible (widget)
-  (let ((selected (table-widget-selected-row widget))
+  (let ((selected (%table-widget-selected-row widget))
         (visible (%table-visible-row-count widget)))
     (when selected
       (cond
-        ((< selected (table-widget-row-offset widget))
-         (setf (table-widget-row-offset widget) selected))
-        ((>= selected (+ (table-widget-row-offset widget) visible))
-         (setf (table-widget-row-offset widget) (- (1+ selected) visible)))))
+        ((< selected (%table-widget-row-offset widget))
+         (setf (%table-widget-row-offset widget) selected))
+        ((>= selected (+ (%table-widget-row-offset widget) visible))
+         (setf (%table-widget-row-offset widget) (- (1+ selected) visible)))))
     (%table-clamp-row-offset widget)
     widget))
 
@@ -157,9 +183,9 @@
 (defun table-widget-set-rows (widget rows)
   (check-type widget table-widget)
   (setf (table-widget-rows widget) (copy-list rows))
-  (when (and (table-widget-selected-row widget)
-             (>= (table-widget-selected-row widget) (length rows)))
-    (setf (table-widget-selected-row widget)
+  (when (and (%table-widget-selected-row widget)
+             (>= (%table-widget-selected-row widget) (length rows)))
+    (setf (%table-widget-selected-row widget)
           (and rows (1- (length rows)))))
   (%table-ensure-selected-row-visible widget)
   widget)
@@ -167,7 +193,7 @@
 (defun table-widget-select-row (widget row)
   (check-type widget table-widget)
   (when (and (integerp row) (<= 0 row) (< row (length (table-widget-rows widget))))
-    (setf (table-widget-selected-row widget) row)
+    (setf (%table-widget-selected-row widget) row)
     (%table-ensure-selected-row-visible widget)
     widget))
 
@@ -175,7 +201,7 @@
   (check-type widget table-widget)
   (when (and (integerp column) (<= 0 column)
              (< column (length (table-widget-columns widget))))
-    (setf (table-widget-selected-column widget) column)
+    (setf (%table-widget-selected-column widget) column)
     widget))
 
 (defmethod widget-preferred-size ((widget table-widget))
@@ -213,8 +239,8 @@
                  (incf x width))
         (incf y))
       (%table-clamp-row-offset widget)
-      (loop for row in (nthcdr (table-widget-row-offset widget) rows)
-            for row-index from (table-widget-row-offset widget)
+      (loop for row in (nthcdr (%table-widget-row-offset widget) rows)
+            for row-index from (%table-widget-row-offset widget)
             while (< y (rectangle-bottom area))
             do (let ((x (rectangle-x area)))
                  (loop for column in columns for width in widths for column-index from 0
@@ -223,12 +249,12 @@
                            (%table-padded-cell
                             (%table-column-value column row column-index)
                             width (table-column-align column))
-                           :style (if (and (table-widget-selected-row widget)
-                                           (= row-index (table-widget-selected-row widget))
-                                           (= column-index (table-widget-selected-column widget)))
+                           :style (if (and (%table-widget-selected-row widget)
+                                           (= row-index (%table-widget-selected-row widget))
+                                           (= column-index (%table-widget-selected-column widget)))
                                       selected-style
-                                      (if (and (table-widget-selected-row widget)
-                                               (= row-index (table-widget-selected-row widget)))
+                                      (if (and (%table-widget-selected-row widget)
+                                               (= row-index (%table-widget-selected-row widget)))
                                           selected-style base-style))
                            :max-width width)
                           (incf x width)))
@@ -241,8 +267,8 @@
     (setf (getf info :state)
           (list :row-count (length (table-widget-rows widget))
                 :column-count (length (table-widget-columns widget))
-                :selected-row (table-widget-selected-row widget)
-                :selected-column (table-widget-selected-column widget)))
+                :selected-row (%table-widget-selected-row widget)
+                :selected-column (%table-widget-selected-column widget)))
     info))
 
 (defun %table-select-row-and-move (widget row action distance)
@@ -250,7 +276,7 @@
   (move-action action distance widget))
 
 (defun %table-handle-vertical-key (widget key)
-  (let ((selected (table-widget-selected-row widget))
+  (let ((selected (%table-widget-selected-row widget))
         (row-count (length (table-widget-rows widget))))
     (cond
       ((member key '(:up :k-up) :test #'equalp)
@@ -261,7 +287,7 @@
          (%table-select-row-and-move widget (1+ selected) :down 1))))))
 
 (defun %table-handle-horizontal-key (widget key)
-  (let ((selected (table-widget-selected-column widget))
+  (let ((selected (%table-widget-selected-column widget))
         (column-count (length (table-widget-columns widget))))
     (cond
       ((equalp key :left)
@@ -284,7 +310,7 @@
          (%table-select-row-and-move widget (1- (length rows)) :end 1))))))
 
 (defun %table-handle-page-key (widget key)
-  (let ((selected (table-widget-selected-row widget)))
+  (let ((selected (%table-widget-selected-row widget)))
     (cond
       ((member key '(:page-up :prior :previous-page) :test #'equalp)
        (when selected
@@ -299,9 +325,9 @@
 
 (defun %table-handle-activate-key (widget key)
   (when (and (member key '(:enter :return) :test #'equalp)
-             (table-widget-selected-row widget))
-    (select-action (list :row (table-widget-selected-row widget)
-                         :column (table-widget-selected-column widget))
+             (%table-widget-selected-row widget))
+    (select-action (list :row (%table-widget-selected-row widget)
+                         :column (%table-widget-selected-column widget))
                    widget)))
 
 (defun %table-handle-key-event (widget event)
@@ -323,7 +349,7 @@
            (local-row (floor (- (mouse-event-y event) (rectangle-y area)
                                 header-offset)
                                (slot-value widget 'row-height)))
-           (row (+ local-row (table-widget-row-offset widget)))
+           (row (+ local-row (%table-widget-row-offset widget)))
            (column (%table-column-at-x widget (mouse-event-x event))))
       (when (and (<= 0 local-row) (< row (length rows)) column)
         (table-widget-select-row widget row)

@@ -26,21 +26,29 @@ change the span's rendering contract."
 (defun %validate-cell-invariant (content span continuation-p)
   (if continuation-p
       (unless (and (string= content "") (zerop span))
-        (error "A continuation cell must have empty content and zero span."))
+        (error 'surface-error
+               :detail "A continuation cell must have empty content and zero span."))
       (let ((units (text-units content)))
         (unless (and (= (length units) 1)
                      (= span (text-unit-width (first units)))
                      (plusp span))
-          (error "A drawable cell must contain one display unit whose width matches its span: ~S / ~S."
-                 content span))))
+          (error 'surface-error
+                 :detail (format nil "A drawable cell must contain one display unit whose width matches its span: ~S / ~S."
+                                  content span)))))
   t)
 
 (defun %parse-keyword-options (arguments allowed)
   (unless (evenp (length arguments))
-    (error "Keyword options must contain pairs: ~S" arguments))
+    (error 'invalid-argument-error
+           :context 'arguments
+           :datum arguments
+           :detail "Keyword options must contain pairs."))
   (loop for (key value) on arguments by #'cddr
         do (unless (member key allowed :test #'eq)
-             (error "Unknown option ~S; expected one of ~S." key allowed))
+             (error 'invalid-option-error
+                    :context 'option
+                    :datum key
+                    :allowed allowed))
         append (list key value)))
 
 (defun make-cell (&rest arguments)
@@ -59,7 +67,10 @@ change the span's rendering contract."
       (setf content (string content)))
     (check-type content string)
     (unless (and (integerp span) (>= span 0))
-      (error "Cell span must be a non-negative integer."))
+      (error 'invalid-range-error
+             :context 'span
+             :datum span
+             :expected "a non-negative integer"))
     (%validate-cell-invariant content span continuation-p)
     (%make-cell content (copy-style style) span (not (null continuation-p)))))
 
@@ -76,13 +87,21 @@ change the span's rendering contract."
 (defstruct (surface
             (:copier nil)
             (:constructor %make-surface
-                (width height cells clip dirty default-style)))
+                (width height cells %clip dirty default-style)))
   (width 0 :type (integer 0))
   (height 0 :type (integer 0))
   cells
-  (clip (make-rectangle) :type rectangle)
+  (%clip (make-rectangle) :type rectangle)
   dirty
   (default-style (make-style) :type style))
+
+(defun surface-clip (surface)
+  "Return a copy of SURFACE's current clip rectangle.
+
+The returned RECTANGLE is a fresh copy, so mutating its slots has no effect
+on SURFACE; use SURFACE-SET-CLIP to change the clip, which clamps the new
+rectangle to the surface's own bounds."
+  (copy-rectangle (surface-%clip surface)))
 
 (defun %surface-index (surface x y)
   (+ x (* y (surface-width surface))))
@@ -95,13 +114,16 @@ change the span's rendering contract."
                      (null default)
                      (rectangle clip)
                      (clipping-region (clipping-region-rectangle clip))
-                     (t (error "Clip must be a rectangle, clipping region, or NIL.")))))
+                     (t (error 'invalid-type-error
+                               :context 'clip
+                               :datum clip
+                               :expected-type '(or rectangle clipping-region null))))))
     (copy-rectangle rectangle)))
 
 (defun %surface-visible-p (surface x y)
   (and (<= 0 x) (< x (surface-width surface))
        (<= 0 y) (< y (surface-height surface))
-       (rectangle-contains-point-p (surface-clip surface) x y)))
+       (rectangle-contains-point-p (surface-%clip surface) x y)))
 
 (defun make-surface (&rest arguments)
   (let ((width 0)
@@ -117,7 +139,10 @@ change the span's rendering contract."
             clip (getf options :clip clip)))
     (unless (and (integerp width) (>= width 0)
                  (integerp height) (>= height 0))
-      (error "Surface dimensions must be non-negative integers."))
+      (error 'invalid-range-error
+             :context "Surface dimensions"
+             :datum (list width height)
+             :expected "non-negative integers"))
     (let* ((default-style (copy-style style))
            (cells (make-array (* width height)))
            (surface (%make-surface width height cells
@@ -133,7 +158,7 @@ change the span's rendering contract."
 (defun copy-surface (surface)
   (let ((copy (make-surface (surface-width surface) (surface-height surface)
                             :style (surface-default-style surface)
-                            :clip (surface-clip surface))))
+                            :clip (surface-%clip surface))))
     (dotimes (index (length (surface-cells surface)))
       (setf (aref (surface-cells copy) index)
             (copy-cell (aref (surface-cells surface) index))))
@@ -161,7 +186,7 @@ change the span's rendering contract."
   surface)
 
 (defun surface-set-clip (surface rectangle)
-  (setf (surface-clip surface)
+  (setf (surface-%clip surface)
         (rectangle-intersection (%clip-rectangle rectangle
                                                  (%surface-bounds surface))
                                (%surface-bounds surface)))
@@ -173,7 +198,7 @@ change the span's rendering contract."
 The previous clip is restored even when CONTINUATION transfers control
 through a non-local exit."
   (check-type continuation function)
-  (let ((old-clip (surface-clip surface)))
+  (let ((old-clip (surface-%clip surface)))
     (unwind-protect
          (progn
            (surface-set-clip surface rectangle)
@@ -272,7 +297,7 @@ avoid leaving an invalid dangling continuation in the surface."
 (defun surface-clear (surface &optional rectangle style)
   (let ((area (rectangle-intersection
                (or rectangle (%surface-bounds surface))
-               (surface-clip surface)))
+               (surface-%clip surface)))
         (fill-style (or style (surface-default-style surface))))
     (loop for y from (rectangle-y area) below (rectangle-bottom area)
           do (loop for x from (rectangle-x area) below (rectangle-right area)
@@ -286,7 +311,7 @@ avoid leaving an invalid dangling continuation in the surface."
 
 (defun surface-fill-rectangle (surface rectangle &optional (character #\Space)
                                          style)
-  (let ((area (rectangle-intersection rectangle (surface-clip surface)))
+  (let ((area (rectangle-intersection rectangle (surface-%clip surface)))
         (fill-style (or style (surface-default-style surface))))
     (loop for y from (rectangle-y area) below (rectangle-bottom area)
           do (loop for x from (rectangle-x area) below (rectangle-right area)
@@ -301,9 +326,9 @@ avoid leaving an invalid dangling continuation in the surface."
       ((and (<= 0 x) (< x (surface-width surface))
             (<= 0 y) (< y (surface-height surface))
             (<= (+ x width) (surface-width surface))
-            (rectangle-contains-point-p (surface-clip surface) x y)
+            (rectangle-contains-point-p (surface-%clip surface) x y)
             (rectangle-contains-point-p
-             (surface-clip surface) (1- (+ x width)) y))
+             (surface-%clip surface) (1- (+ x width)) y))
        (surface-put-cell surface x y (make-cell unit :style style :span width))
        t)
       (t nil))))
@@ -338,7 +363,10 @@ fits at an edge, so the result never leaves a dangling continuation cell."
     (check-type text string)
     (check-type draw-style style)
     (unless (and (integerp tab-width) (plusp tab-width))
-      (error "TAB-WIDTH must be a positive integer."))
+      (error 'invalid-range-error
+             :context 'tab-width
+             :datum tab-width
+             :expected "a positive integer"))
     (%surface-draw-text-units surface x y text draw-style origin-x limit
                               tab-width))
   surface)
@@ -350,7 +378,10 @@ Newlines and tabs keep their usual behavior across span boundaries, and
 MAX-WIDTH is measured from the initial X coordinate for the whole run."
   (check-type spans list)
   (unless (and (integerp tab-width) (plusp tab-width))
-    (error "TAB-WIDTH must be a positive integer."))
+    (error 'invalid-range-error
+           :context 'tab-width
+           :datum tab-width
+           :expected "a positive integer"))
   (let* ((origin-x x)
          (limit (and max-width (+ x (max 0 max-width)))))
     (dolist (span spans surface)

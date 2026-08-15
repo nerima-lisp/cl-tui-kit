@@ -3,11 +3,21 @@
 ;;;; ANSI is deliberately an output-only backend.  It consumes normalized
 ;;;; surfaces and never parses input, enables raw mode, or owns a terminal.
 
+(defgeneric ansi-backend-previous-surface (backend)
+  (:documentation "Return BACKEND's live diff-rendering baseline surface.
+
+The returned SURFACE is the backend's own internal snapshot from the
+previous BACKEND-PRESENT call, not a copy: mutating it (through
+SURFACE-PUT-CELL or any other surface mutation) corrupts the baseline that
+the next BACKEND-PRESENT diffs against.  It is exposed only for
+introspection and testing; application code must not write through it."))
+
 (defclass ansi-backend (backend)
   ((stream :initarg :stream :initform *standard-output*
            :accessor ansi-backend-stream)
    (previous-surface :initarg :previous-surface :initform nil
-                      :accessor ansi-backend-previous-surface)
+                      :reader ansi-backend-previous-surface
+                      :writer (setf %ansi-backend-previous-surface))
    (mouse-mode :initform nil :accessor ansi-backend-mouse-mode)
    (mouse-sgr-p :initform nil :accessor ansi-backend-mouse-sgr-p)
    (bracketed-paste-enabled-p :initform nil
@@ -311,7 +321,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
            ;; full frame has been emitted, otherwise a later diff can
            ;; incorrectly suppress an update outside the first region.
            (unless region
-             (setf (ansi-backend-previous-surface backend)
+             (setf (%ansi-backend-previous-surface backend)
                    (copy-surface surface))))
       (when synchronized-p
         (%ansi-write-private-mode stream 2026 nil))))
@@ -324,7 +334,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (backend-invalidate backend))
 
 (defmethod backend-invalidate ((backend ansi-backend))
-  (setf (ansi-backend-previous-surface backend) nil)
+  (setf (%ansi-backend-previous-surface backend) nil)
   backend)
 
 (defmethod backend-set-cursor :after ((backend ansi-backend) point)
@@ -452,7 +462,10 @@ The terminal response must be fed to TERMINAL-INPUT-PARSER.  A successful
 request returns T and :PENDING; the eventual response is a CLIPBOARD-EVENT."
   (check-type selection string)
   (unless (%ansi-valid-clipboard-selection-p selection)
-    (error "Invalid OSC 52 clipboard selection: ~S" selection))
+    (error 'invalid-argument-error
+           :context 'selection
+           :datum selection
+           :detail "Invalid OSC 52 clipboard selection."))
   (if (backend-supports-p backend :clipboard)
       (let ((stream (ansi-backend-stream backend)))
         (format stream "~C]52;~A;?~C"

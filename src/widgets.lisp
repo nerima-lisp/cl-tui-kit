@@ -219,7 +219,8 @@
                                   semantic-role accessible-label
                                   accessible-description accessible-help-text)
   (unless (member orientation '(:horizontal :vertical) :test #'eq)
-    (error "Divider orientation must be :HORIZONTAL or :VERTICAL."))
+    (error 'invalid-option-error :context 'orientation :datum orientation
+           :allowed '(:horizontal :vertical)))
   (make-instance 'divider-widget :orientation orientation :id id
                  :rectangle (or rectangle (make-rectangle))
                  :style (or style (make-style))
@@ -360,7 +361,8 @@
   (check-type value real)
   (check-type maximum real)
   (when (minusp maximum)
-    (error "Progress maximum must not be negative."))
+    (error 'invalid-range-error :context 'maximum :datum maximum
+           :expected "a value that is not negative"))
   (make-instance 'progress-widget :value value :maximum maximum :label label
                  :id id :rectangle (or rectangle (make-rectangle))
                  :style (or style (make-style))

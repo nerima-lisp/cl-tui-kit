@@ -20,9 +20,11 @@
                                            style theme semantic-role accessible-label
                                            accessible-description accessible-help-text)
   (unless (and (integerp max-visible) (plusp max-visible))
-    (error "Notification max-visible must be positive."))
+    (error 'invalid-range-error :context 'max-visible :datum max-visible
+           :expected "a positive integer"))
   (unless (member placement '(:top :bottom) :test #'eq)
-    (error "Notification placement must be :TOP or :BOTTOM."))
+    (error 'invalid-option-error :context 'placement :datum placement
+           :allowed '(:top :bottom)))
   (make-instance 'notification-center-widget :max-visible max-visible
                  :placement placement :id id
                  :rectangle (or rectangle (make-rectangle))

@@ -46,7 +46,9 @@
 
 (defun %check-non-negative-integer (value name)
   (unless (and (integerp value) (>= value 0))
-    (error "~A must be a non-negative integer: ~S" name value))
+    (error 'invalid-range-error :context name
+                                 :expected "a non-negative integer"
+                                 :datum value))
   value)
 
 (defun make-vbox (children &key constraints (gap 0))
@@ -67,9 +69,12 @@
 
 (defun make-split (children &key (ratio 0.5) (axis :horizontal) constraints)
   (unless (and (realp ratio) (<= 0 ratio) (<= ratio 1))
-    (error "Split ratio must be between 0 and 1: ~S" ratio))
+    (error 'invalid-range-error :context 'ratio
+                                 :expected "a real number between 0 and 1"
+                                 :datum ratio))
   (unless (member axis '(:horizontal :vertical) :test #'eq)
-    (error "Split axis must be :HORIZONTAL or :VERTICAL: ~S" axis))
+    (error 'invalid-option-error :context 'axis :datum axis
+                                  :allowed '(:horizontal :vertical)))
   (make-layout-node :split children :constraints constraints
                     :options (list :ratio ratio :axis axis)))
 
@@ -93,10 +98,14 @@
 (defun make-grid (children &key columns rows (column-gap 0) (row-gap 0)
                              constraints)
   (unless (and (integerp columns) (plusp columns))
-    (error "Grid columns must be a positive integer: ~S" columns))
+    (error 'invalid-range-error :context 'columns
+                                 :expected "a positive integer"
+                                 :datum columns))
   (when rows
     (unless (and (integerp rows) (plusp rows))
-      (error "Grid rows must be a positive integer when supplied: ~S" rows)))
+      (error 'invalid-range-error :context 'rows
+                                   :expected "a positive integer when supplied"
+                                   :datum rows)))
   (%check-non-negative-integer column-gap :column-gap)
   (%check-non-negative-integer row-gap :row-gap)
   (make-layout-node :grid children :constraints constraints

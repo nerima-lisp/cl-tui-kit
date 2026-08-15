@@ -238,3 +238,31 @@
       (is-equal :cancel
                 (action-name
                  (widget-handle-event input (test-key :escape))))))
+
+  (deftest surface-clip-mutation-does-not-corrupt-surface (:edge-cases)
+    (let ((surface (make-surface 8 4)))
+      (surface-set-clip surface (test-rectangle 1 1 4 2))
+      (let ((clip (surface-clip surface)))
+        (setf (rectangle-x clip) 0)
+        (setf (rectangle-y clip) 0)
+        (setf (rectangle-width clip) 8)
+        (setf (rectangle-height clip) 4))
+      (is-equal (test-rectangle 1 1 4 2) (surface-clip surface))
+      (surface-draw-text surface 0 0 "x")
+      (is-equal " " (surface-cell-string (surface-cell surface 0 0)))))
+
+  (deftest keymap-state-pending-mutation-does-not-corrupt-state (:edge-cases)
+    (let* ((keymap (make-keymap :name :edge))
+           (state (make-keymap-state)))
+      (bind-key keymap (list #\g #\g) (custom-action :top))
+      (is-equal :prefix
+                (keymap-result-status
+                 (keymap-dispatch keymap state (test-key #\g))))
+      (let ((pending (keymap-state-pending state)))
+        (is-equal 1 (length pending))
+        (setf (car pending) :corrupted)
+        (setf (cdr pending) (list :extra :garbage)))
+      (is-equal 1 (length (keymap-state-pending state)))
+      (let ((result (keymap-dispatch keymap state (test-key #\g))))
+        (is-equal :handled (keymap-result-status result))
+        (is-equal :top (action-name (keymap-result-action result))))))

@@ -17,11 +17,14 @@
 
 (defun make-list-model (&key count item-at key-at label-at render-item)
   (unless (or (integerp count) (functionp count))
-    (error "LIST-MODEL :COUNT must be an integer or function."))
+    (error 'invalid-type-error :context 'count :datum count
+           :expected-type '(or integer function)))
   (when (and (integerp count) (minusp count))
-    (error "LIST-MODEL :COUNT must be non-negative."))
+    (error 'invalid-range-error :context 'count :datum count
+           :expected "a non-negative integer"))
   (unless (functionp item-at)
-    (error "LIST-MODEL :ITEM-AT must be a function."))
+    (error 'invalid-type-error :context 'item-at :datum item-at
+           :expected-type 'function))
   (make-instance 'list-model
                  :count count :item-at item-at
                  :key-at (or key-at (lambda (item index)
@@ -32,7 +35,8 @@
 
 (defun %validated-model-count (value name)
   (unless (and (integerp value) (>= value 0))
-    (error "~A must return a non-negative integer, got ~S." name value))
+    (error 'callback-contract-error :callback name :value (bounded-datum value)
+           :detail (format nil "~A must return a non-negative integer." name)))
   value)
 
 (defun list-model-count (model)
@@ -67,7 +71,8 @@
                                       (offset 0) (row-height 1) focusable-p)
   (check-type model list-model)
   (unless (and (integerp row-height) (plusp row-height))
-    (error "List row height must be a positive integer."))
+    (error 'invalid-range-error :context 'row-height :datum row-height
+           :expected "a positive integer"))
   (make-instance 'list-widget :model model :id id
                  :rectangle (or rectangle (make-rectangle))
                  :style (or style (make-style))

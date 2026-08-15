@@ -74,7 +74,6 @@
     let
       systems = [
         "x86_64-linux"
-        "aarch64-darwin"
       ];
 
       clCodecKit =
@@ -161,7 +160,9 @@
         description = "A generic, composable Common Lisp terminal UI toolkit";
         homepage = "https://github.com/nerima-lisp/cl-tui-kit";
         license = nixpkgs.lib.licenses.mit;
-        platforms = nixpkgs.lib.platforms.unix;
+        # Matches `systems` above (line 75): claim only what is actually
+        # built and checked, not every Unix nixpkgs happens to support.
+        platforms = systems;
       };
 
       # The umbrella system stays pure. These entries make the optional tty

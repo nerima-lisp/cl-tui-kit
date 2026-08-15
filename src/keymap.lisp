@@ -72,14 +72,25 @@ form `(SEQUENCE ACTION &rest BIND-OPTIONS)`, where SEQUENCE is a key or a
 literal list of keys.  The generated constructor accepts a runtime PARENT,
 which makes the same declarative map usable in a hierarchy or overlay."
   (unless (symbolp name)
-    (error "Keymap constructor name must be a symbol: ~S" name))
+    (error 'invalid-type-error
+           :context 'name
+           :datum name
+           :expected-type 'symbol))
   (unless (listp options)
-    (error "Keymap options must be a literal plist: ~S" options))
+    (error 'invalid-type-error
+           :context 'options
+           :datum options
+           :expected-type 'list))
   (unless (evenp (length options))
-    (error "Keymap options must contain an even number of forms: ~S" options))
+    (error 'invalid-argument-error
+           :context 'options
+           :datum options
+           :detail "Keymap options must contain an even number of forms."))
   (loop for key in options by #'cddr
         do (unless (and (keywordp key) (not (eq key :parent)))
-             (error "Invalid keymap option: ~S" key)))
+             (error 'invalid-option-error
+                    :context "keymap option"
+                    :datum key)))
   (let ((keymap-var (gensym "KEYMAP-")))
     `(defun ,name (&key parent)
        (let ((,keymap-var (make-keymap :parent parent ,@options)))
@@ -97,20 +108,35 @@ which makes the same declarative map usable in a hierarchy or overlay."
     keymap))
 
 (defstruct (keymap-state (:constructor %make-keymap-state
-                                      (pending pending-since)))
-  (pending '() :type list)
-  pending-since)
+                                      (%pending %pending-since)))
+  (%pending '() :type list)
+  %pending-since)
+
+(defun keymap-state-pending (state)
+  "Return a copy of STATE's pending prefix key-stroke sequence.
+
+The returned list is a fresh copy, so mutating it has no effect on STATE;
+use RESET-KEYMAP-STATE to clear the pending prefix."
+  (copy-list (keymap-state-%pending state)))
+
+(defun keymap-state-pending-since (state)
+  "Return the timestamp at which STATE's pending prefix began, or NIL when
+no prefix is pending.
+
+This value is internal dispatch state and must not be mutated directly;
+use RESET-KEYMAP-STATE to clear it."
+  (keymap-state-%pending-since state))
 
 (defun make-keymap-state (&key time)
   (%make-keymap-state '() time))
 
 (defun reset-keymap-state (state)
-  (setf (keymap-state-pending state) nil)
-  (setf (keymap-state-pending-since state) nil)
+  (setf (keymap-state-%pending state) nil)
+  (setf (keymap-state-%pending-since state) nil)
   state)
 
 (defun keymap-state-prefix-active-p (state)
-  (not (null (keymap-state-pending state))))
+  (not (null (keymap-state-%pending state))))
 
 (defstruct (keymap-result (:constructor %make-keymap-result (status action prefix)))
   (status :unhandled :type symbol)
@@ -162,9 +188,9 @@ for a longer command; callers may use the complete command immediately."
        (reset-keymap-state state)
        (%make-keymap-result :handled (%binding-action binding event) nil))
       (:prefix
-       (setf (keymap-state-pending state) sequence)
-       (unless (keymap-state-pending-since state)
-         (setf (keymap-state-pending-since state) time))
+       (setf (keymap-state-%pending state) sequence)
+       (unless (keymap-state-%pending-since state)
+         (setf (keymap-state-%pending-since state) time))
        (%make-keymap-result :prefix nil sequence))
       (otherwise nil))))
 
@@ -180,7 +206,7 @@ core never sleeps or creates a timer."
   (check-type state keymap-state)
   (check-type event key-event)
   (let* ((stroke (%stroke event))
-         (pending (keymap-state-pending state))
+         (pending (keymap-state-%pending state))
          (sequence (append pending (list stroke)))
          (result (%dispatch-sequence keymap state sequence event time)))
     (or result
@@ -201,7 +227,7 @@ can use their event loop's monotonic clock without making the core sleep or
 spawn a timer thread."
   (check-type keymap keymap)
   (check-type state keymap-state)
-  (let ((pending (keymap-state-pending state)))
+  (let ((pending (keymap-state-%pending state)))
     (when pending
       (let ((timeout (keymap-prefix-timeout keymap)))
         (reset-keymap-state state)

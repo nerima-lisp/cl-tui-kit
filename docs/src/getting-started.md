@@ -2,9 +2,39 @@
 
 ## Prerequisites
 
-The library is distributed as ASDF systems. A Common Lisp implementation with
-ASDF is enough for the pure systems. The repository also provides a Nix flake
-for reproducible development checks.
+cl-tui-kit is developed and verified against SBCL only; no other Common Lisp
+implementation runs in this project's checks.
+
+| Implementation | Systems covered | Verified construction |
+| --- | --- | --- |
+| SBCL | All systems in this repository | x86_64-linux |
+
+`src/` contains no `#+`/`#-` reader conditionals and no implementation-specific
+code, so loading under another conforming Common Lisp implementation is
+plausible, but that has not been verified and is not supported. The
+repository also provides a Nix flake for reproducible development checks;
+see [Development](project/development.md).
+
+cl-tui-kit is distributed only as ASDF systems in this GitHub repository and
+through the Nix flake; it is not published to Quicklisp or Ultralisp. A
+fresh checkout is invisible to ASDF until its directory is registered, so
+loading the umbrella system below fails with `Component "cl-tui-kit" not
+found` until one of the following is done first.
+
+Register the checkout with a source-registry config file (recommended; picked
+up automatically):
+
+    mkdir -p ~/.config/common-lisp/source-registry.conf.d
+    echo '(:tree "/absolute/path/to/cl-tui-kit/")' \
+      > ~/.config/common-lisp/source-registry.conf.d/cl-tui-kit.conf
+
+or push it onto `asdf:*central-registry*` for the current session, before
+loading:
+
+    (push #P"/absolute/path/to/cl-tui-kit/" asdf:*central-registry*)
+
+Either way, the checkout only needs to be registered once (or once per
+session, for the `*central-registry*` form).
 
 ## Render a surface
 

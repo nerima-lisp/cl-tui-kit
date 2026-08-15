@@ -36,7 +36,10 @@ nav:
       - Examples: guide/examples.md
   - Reference:
       - API: reference/api.md
+      - Conditions: reference/conditions.md
+      - Event Loop: reference/event-loop.md
       - Architecture: reference/architecture.md
   - Project:
       - Development: project/development.md
+      - API Stability: project/api-stability.md
       - Quality Gates: project/quality-gates.md

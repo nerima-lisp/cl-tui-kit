@@ -126,13 +126,18 @@ a hidden thread."
   (check-type loop event-loop)
   (check-type delay real)
   (unless (>= delay 0)
-    (error "Timer delay must be non-negative, got ~S." delay))
+    (error 'invalid-range-error
+           :context 'delay
+           :datum delay
+           :expected "a non-negative real number"))
   (check-type callback function)
   (when repeat
     (check-type repeat real)
     (unless (plusp repeat)
-      (error "A repeating timer must have a positive repeat interval, got ~S."
-             repeat)))
+      (error 'invalid-range-error
+             :context 'repeat
+             :datum repeat
+             :expected "a positive real number")))
   (let ((task (%make-event-loop-task
                (incf (event-loop-next-id loop))
                (+ (event-loop-now loop) delay)
@@ -189,8 +194,10 @@ meaning as in EVENT-LOOP-SCHEDULE."
     ((and (listp result) (every #'event-p result))
      (dolist (event result) (event-loop-post loop event))
      result)
-    (t (error "Timer callback returned neither an event nor a list of events: ~S"
-              result))))
+    (t (error 'callback-contract-error
+              :callback "event loop timer callback"
+              :detail "Timer callback returned neither an event nor a list of events."
+              :value (bounded-datum result)))))
 
 (defun %event-loop-handle-error (loop condition source)
   (unless (funcall (event-loop-error-handler loop) condition loop source)
@@ -228,7 +235,8 @@ call EVENT-LOOP-POST or EVENT-LOOP-WAKEUP."
     (cond
       ((event-loop-pending-event-p loop)
        (unless dispatch
-         (error "EVENT-LOOP-STEP needs an event handler for queued events."))
+         (error 'protocol-error
+                :detail "EVENT-LOOP-STEP needs an event handler for queued events."))
        (%event-loop-dispatch loop (%event-loop-pop-event loop) dispatch)
        t)
       (t
@@ -372,8 +380,10 @@ time.  A final parser flush happens before EOF is returned."
              (%terminal-event-source-finish-eof source)
              (progn
                (unless (or (stringp input) (vectorp input))
-                 (error "Terminal event source reader returned ~S; expected a string, octet vector, or EOF-VALUE."
-                        input))
+                 (error 'callback-contract-error
+                        :callback "terminal event source reader"
+                        :detail "Terminal event source reader returned a value that was not a string, octet vector, or EOF-VALUE."
+                        :value (bounded-datum input)))
                (%terminal-event-source-queue-events
                 source
                 (terminal-input-parser-feed
@@ -390,11 +400,15 @@ this ownership rule keeps the core usable with standard streams and with
 adapters that manage their own descriptors."
   (check-type stream stream)
   (unless (and (integerp chunk-size) (plusp chunk-size))
-    (error "STREAM event source CHUNK-SIZE must be a positive integer, got ~S."
-           chunk-size))
+    (error 'invalid-range-error
+           :context 'chunk-size
+           :datum chunk-size
+           :expected "a positive integer"))
   (unless (member element-type '(:character :octet) :test #'eq)
-    (error "STREAM event source ELEMENT-TYPE must be :CHARACTER or :OCTET, got ~S."
-           element-type))
+    (error 'invalid-option-error
+           :context 'element-type
+           :datum element-type
+           :allowed '(:character :octet)))
   (check-type close-stream-p boolean)
   (make-terminal-event-source
    (lambda ()

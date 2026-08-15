@@ -44,9 +44,12 @@ condition from ordinary test success, and full coverage remains a target to
 close by exercising real behavior rather than by weakening the metric.
 
 CI runs this same SB-COVER entry point in the Nix development environment on
-Linux. The ordinary `nix flake check` remains the cross-platform behavior and
-documentation gate; the coverage job supplies the SBCL-specific executable
-coverage signal.
+Linux. The ordinary `nix flake check` remains the behavior and documentation
+gate; the coverage job supplies the SBCL-specific executable coverage signal.
+
+The flake declares `x86_64-linux` only, so `nix flake check` on another host
+omits every check and still exits zero. See
+[Quality Gates](quality-gates.md) before reading a local pass as evidence.
 
 The test system also uses cl-weave property tests for algebraic contracts such
 as idempotent modifier normalization. Keep property generators bounded and
@@ -80,6 +83,18 @@ form below is reproducible outside the shell as well:
 
 The documentation root is declared in the flake so the same project metadata
 can build the MkDocs site along with the Lisp package.
+
+## API stability tier
+
+cl-tui-kit/core, cl-tui-kit/layout, cl-tui-kit/widgets, cl-tui-kit/ansi, and
+cl-tui-kit/testing are the stable tier: every export is covered by SemVer,
+and a change that removes an export, narrows accepted input, or otherwise
+breaks a caller needs a major-version bump and the deprecation procedure.
+cl-tui-kit/tty and cl-tui-kit/codec are experimental and can change without
+that procedure, because each depends on a sibling nerima-lisp library not
+published to Quicklisp. Check which tier a change lands in before deciding
+whether it needs a major bump; see [API Stability](api-stability.md) for the
+full policy.
 
 ## Documentation changes
 

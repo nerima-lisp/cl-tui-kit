@@ -167,6 +167,129 @@
     (is-equal "abc…" (truncate-text "abcdef" 4))
     (is-equal 2 (string-cell-width (format nil "ab~Ccd" #\Newline)))))
 
+;;;; TEXT-WIDTH-DATA is a static Unicode range table excluded from coverage
+;;;; measurement (t/runner.lisp), so these property tests -- not example
+;;;; tests picking a handful of hand-chosen code points -- are what actually
+;;;; exercises it against generated input.  The alphabet below deliberately
+;;;; excludes ZWJ, emoji modifiers, and variation selectors: those group
+;;;; several non-zero-width characters into one grapheme unit capped at width
+;;;; 2 by TEXT-UNIT-WIDTH, which would make a naive per-character sum wrong
+;;;; for reasons that have nothing to do with a text-width regression.
+;;;;
+;;;; #x20000 (CJK Extension B) is drawn from the astral half of the WIDE
+;;;; range declared at src/text-width-data.lisp's *WIDE-CODE-RANGES* entry
+;;;; (#x20000 #x3fffd).  Unlike an emoji, it is not subject to any grouping
+;;;; branch in TEXT-UNITS (src/text.lisp), so it is safe to sum like any
+;;;; other plain wide character.
+
+(defparameter *property-test-wide-characters*
+  (list (code-char #x1100) (code-char #x65e5) (code-char #x20000)))
+
+(defparameter *property-test-combining-characters*
+  (list (code-char #x0300) (code-char #x0301)))
+
+(defparameter *property-test-ambiguous-characters*
+  (list (code-char #x00a1) (code-char #x00b1)))
+
+(defparameter *property-test-mixed-unicode-alphabet*
+  (coerce (append (coerce "abcXYZ019 .,!?" 'list)
+                  *property-test-wide-characters*
+                  *property-test-combining-characters*
+                  *property-test-ambiguous-characters*)
+          'string))
+
+(cl-weave:it-property
+    "string-cell-width sums per-character cell-width for mixed unicode text"
+  ((text (cl-weave:gen-string
+          :min-length 0 :max-length 24
+          :alphabet *property-test-mixed-unicode-alphabet*))
+   (wide-ambiguous-p (cl-weave:gen-boolean)))
+  (with-ambiguous-width ((if wide-ambiguous-p :wide :narrow))
+    (is-equal (loop for character across text sum (cell-width character))
+              (string-cell-width text))))
+
+;;;; CELL-WIDTH always returns a literal 0, 1, or 2 (src/text.lisp), so a
+;;;; property asserting only that the result is an integer in [0, 2] is true
+;;;; regardless of which COND branch fired -- it cannot distinguish a correct
+;;;; classification from a wrong one.  The properties below instead draw a
+;;;; code point from a range one of the *-CODE-RANGES tables in
+;;;; src/text-width-data.lisp actually declares, and assert the exact width
+;;;; that range promises, so a branch returning the wrong constant (or a
+;;;; range test with an off-by-one bound) turns the assertion false rather
+;;;; than merely out of range.  CELL-WIDTH's COND checks combining/emoji-
+;;;; modifier ranges before the wide range, and the wide range before the
+;;;; ambiguous-width-gated range, so a range drawn from a lower-priority
+;;;; table that also falls inside a higher-priority one would make "this
+;;;; table controls the result" false; each candidate set below is filtered
+;;;; to exclude that overlap.
+
+(defun unicode-ranges-intersect-p (a b)
+  (and (<= (first a) (second b)) (<= (first b) (second a))))
+
+(defun unicode-ranges-excluding-overlap (candidates excluded)
+  "Ranges in CANDIDATES that share no code point with any range in EXCLUDED."
+  (remove-if (lambda (range)
+               (some (lambda (other) (unicode-ranges-intersect-p range other))
+                     excluded))
+             candidates))
+
+(defun unicode-range-sample (range offset)
+  (destructuring-bind (low high) range
+    (+ low (mod offset (1+ (- high low))))))
+
+(defun gen-code-in-ranges (ranges)
+  "A CL-WEAVE generator producing a code point drawn from one of RANGES."
+  (cl-weave:gen-map (lambda (parts) (apply #'unicode-range-sample parts))
+                     (cl-weave:gen-tuple (cl-weave:gen-member ranges)
+                                        (cl-weave:gen-integer :min 0 :max 1000000))))
+
+(defparameter *wide-range-property-candidates*
+  (unicode-ranges-excluding-overlap
+   cl-tui-kit/core::*wide-code-ranges*
+   (list* (list #x1f3fb #x1f3ff) ; %EMOJI-MODIFIER-P, checked before "wide"
+          cl-tui-kit/core::*combining-code-ranges*)))
+
+(defparameter *ambiguous-range-property-candidates*
+  (unicode-ranges-excluding-overlap
+   cl-tui-kit/core::*ambiguous-code-ranges*
+   (append cl-tui-kit/core::*combining-code-ranges*
+           cl-tui-kit/core::*wide-code-ranges*)))
+
+(cl-weave:it-property
+    "cell-width returns the width the declared Unicode range table dictates"
+  ((sample (cl-weave:gen-one-of
+            (cl-weave:gen-map (lambda (code) (cons code 0))
+                              (cl-weave:gen-integer :min 0 :max 31))
+            (cl-weave:gen-map (lambda (code) (cons code 1))
+                              (cl-weave:gen-integer :min 32 :max 126))
+            (cl-weave:gen-map (lambda (code) (cons code 2))
+                              (gen-code-in-ranges *wide-range-property-candidates*))
+            (cl-weave:gen-map (lambda (code) (cons code 0))
+                              (gen-code-in-ranges
+                               cl-tui-kit/core::*combining-code-ranges*)))))
+  (destructuring-bind (code . expected-width) sample
+    (is-equal expected-width (cell-width (code-char code)))))
+
+(cl-weave:it-property
+    "cell-width for a declared East Asian Ambiguous code point follows *ambiguous-width*"
+  ((code (gen-code-in-ranges *ambiguous-range-property-candidates*))
+   (wide-ambiguous-p (cl-weave:gen-boolean)))
+  (with-ambiguous-width ((if wide-ambiguous-p :wide :narrow))
+    (is-equal (if wide-ambiguous-p 2 1) (cell-width (code-char code)))))
+
+(cl-weave:it-property "clip-text and truncate-text never exceed the requested cell width"
+  ((text (cl-weave:gen-string
+          :min-length 0 :max-length 40
+          :alphabet (concatenate 'string
+                                 *property-test-mixed-unicode-alphabet*
+                                 (string #\Tab)
+                                 (string #\Newline))))
+   (max-width (cl-weave:gen-integer :min 0 :max 20))
+   (wide-ambiguous-p (cl-weave:gen-boolean)))
+  (with-ambiguous-width ((if wide-ambiguous-p :wide :narrow))
+    (is (<= (string-cell-width (clip-text text max-width)) max-width))
+    (is (<= (string-cell-width (truncate-text text max-width)) max-width))))
+
 (deftest text-and-surface-edge-contracts (:text-surface-edges)
   (let* ((zwj (code-char #x200D))
          (woman (code-char #x1F469))

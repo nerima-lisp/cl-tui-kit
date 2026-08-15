@@ -1,5 +1,18 @@
 (in-package #:cl-tui-kit/testing)
 
+(define-condition assertion-failed-error (cl-tui-kit-error)
+  ((expected :initarg :expected :initform nil
+             :reader assertion-failed-error-expected)
+   (actual :initarg :actual :initform nil
+           :reader assertion-failed-error-actual))
+  (:documentation "A test assertion in CL-TUI-KIT/TESTING did not hold.")
+  (:report
+   (lambda (condition stream)
+     (format stream "~A Expected ~S, got ~S."
+             (or (cl-tui-kit-error-detail condition) "Assertion failed.")
+             (assertion-failed-error-expected condition)
+             (assertion-failed-error-actual condition)))))
+
 ;;;; This backend stores structured frames.  It has no stream and therefore
 ;;;; makes rendering assertions independent of a terminal.
 
@@ -169,6 +182,6 @@ without observing later mutations by the application."
 (defun assert-surface-text (surface expected)
   (let ((actual (surface-string surface)))
     (unless (string= actual expected)
-      (error "Surface text mismatch. Expected ~S, got ~S."
-             expected actual)))
+      (error 'assertion-failed-error :expected expected :actual actual
+             :detail "Surface text mismatch.")))
   t)

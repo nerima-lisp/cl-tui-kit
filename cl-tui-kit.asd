@@ -3,11 +3,12 @@
 (asdf:defsystem "cl-tui-kit/core"
   :description "Terminal-cell geometry, surfaces, text, styles, events, keymaps, and backend protocol."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :serial t
   :components
   ((:file "src/package")
+   (:file "src/conditions")
    (:file "src/geometry")
    (:file "src/style")
    (:file "src/text-width-data")
@@ -25,7 +26,7 @@
 (asdf:defsystem "cl-tui-kit/layout"
   :description "Composable layout and focus-tree primitives."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/core")
   :serial t
@@ -37,7 +38,7 @@
 (asdf:defsystem "cl-tui-kit/widgets"
   :description "Domain-neutral widgets built on the core and layout protocols."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/layout")
   :serial t
@@ -63,7 +64,7 @@
 (asdf:defsystem "cl-tui-kit/ansi"
   :description "Optional ANSI output backend; it does not parse terminal input."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/core")
   :serial t
@@ -72,7 +73,7 @@
 (asdf:defsystem "cl-tui-kit/tty"
   :description "Optional terminal-size protocol integration using nerima-lisp's cl-tty-kit."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/ansi" "cl-tty-kit")
   :serial t
@@ -81,7 +82,7 @@
 (asdf:defsystem "cl-tui-kit/codec"
   :description "Optional UTF-8 codec integration using nerima-lisp's cl-codec-kit."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/core" "cl-codec-kit")
   :serial t
@@ -90,7 +91,7 @@
 (asdf:defsystem "cl-tui-kit/testing"
   :description "Deterministic structured test backend and frame helpers."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/core")
   :serial t
@@ -99,7 +100,7 @@
 (asdf:defsystem "cl-tui-kit"
   :description "A generic, composable Common Lisp terminal UI toolkit."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit/core"
                "cl-tui-kit/layout"
@@ -113,7 +114,7 @@
 (asdf:defsystem "cl-tui-kit/examples"
   :description "Domain-neutral examples built from cl-tui-kit protocols."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit")
   :serial t
@@ -122,7 +123,7 @@
 (asdf:defsystem "cl-tui-kit/tests"
   :description "cl-weave tests for cl-tui-kit's deterministic protocols."
   :author "takeokunn"
-  :version "0.1.0"
+  :version "1.0.0"
   :license "MIT"
   :depends-on ("cl-tui-kit"
                "cl-tui-kit/tty"
@@ -135,6 +136,7 @@
    (:file "t/suite")
    (:file "t/edge-tests")
    (:file "t/core-tests")
+   (:file "t/condition-tests")
    (:file "t/input-tests")
    (:file "t/keymap-tests")
    (:file "t/layout-tests")

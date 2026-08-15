@@ -22,12 +22,13 @@
   (let ((frames (if frames-p frames (list "-" "/" "|" "\\"))))
     (check-type frames list)
     (unless frames
-      (error "A spinner needs at least one frame."))
+      (error 'invalid-argument-error :context 'frames :datum frames
+             :detail "A spinner needs at least one frame."))
     (setf frames (copy-list frames))
     (check-type index (integer 0))
     (when (>= index (length frames))
-      (error "Spinner frame index ~D is outside the range of ~D frames."
-             index (length frames)))
+      (error 'index-out-of-bounds-error :context "frames" :index index
+             :count (length frames)))
     (check-type running-p boolean)
     (make-instance 'spinner-widget
                    :frames frames :index index :running-p running-p

@@ -2,7 +2,18 @@ name: CI
 
 on:
   push:
+    # v* tags are release.yml's trigger; it calls this workflow via
+    # workflow_call (added below) and gates its release job on the result,
+    # so excluding them here stops a tag push from also triggering a second,
+    # independent run of the exact same jobs directly.
+    tags-ignore:
+      - 'v*'
   pull_request:
+  # Lets release.yml re-run every job in this file for the tagged commit
+  # (`uses: ./.github/workflows/ci.yml`) instead of re-implementing the same
+  # gates a second time or trusting a separately-triggered run it has no
+  # `needs:` dependency on.
+  workflow_call:
 
 permissions:
   contents: read
@@ -10,6 +21,30 @@ permissions:
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # Ratchet floor for the SB-COVER gate in the `coverage` job below
+  # (t/runner.lisp:19-30, wired into cl-weave:run-all at t/runner.lisp:41-46).
+  # These two values must only ever increase -- raising the floor once
+  # coverage improves is the point of a ratchet; lowering either one to turn
+  # a red run green defeats it. Re-measure with:
+  #   nix develop --command sbcl --script run-coverage.lisp
+  # then read the "Source coverage: expressions X/Y, branches A/B" line the
+  # coverage job prints and set these to floor(100*X/Y) and floor(100*A/B)
+  # (or lower, to leave headroom).
+  #
+  # Measured on x86_64-linux by this job's own bootstrap run: expressions
+  # 16205/16849 (96.1%), branches 1690/1946 (86.8%). The floors below sit
+  # about a point under each so a property test's generator drawing a
+  # different sample cannot turn a real pass red, while a genuine regression
+  # still trips the gate. Raise them when coverage improves; a value that is
+  # lowered to turn a red run green defeats the ratchet.
+  #
+  # The sentinel UNSET is still honoured: setting either back to it makes the
+  # job print the measurement and fail, which is how the floor was obtained
+  # in the first place.
+  CL_TUI_KIT_MIN_EXPRESSION_COVERAGE: "95"
+  CL_TUI_KIT_MIN_BRANCH_COVERAGE: "85"
 
 jobs:
   # Mirrors the local `nix flake check` documented in
@@ -27,12 +62,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # flake.nix:75-78 declares exactly these two systems; the runners
-          # below are their corresponding GitHub-hosted images.
+          # Kept as a matrix with one entry so a second system is a two-line
+          # addition here plus one in flake.nix's `systems`, rather than a
+          # restructuring of this job.
           - os: ubuntu-latest
             system: x86_64-linux
-          - os: macos-14
-            system: aarch64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,9 +114,39 @@ jobs:
         run: |
           report_directory="$RUNNER_TEMP/cl-tui-kit-coverage"
           mkdir -p "$report_directory"
-          nix develop --no-update-lock-file --command env \
-            CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY="$report_directory" \
-            sbcl --script run-coverage.lisp
+
+          # t/runner.lisp:20-30 parse-integers this value and errors --
+          # before any test runs, so before the coverage report line prints
+          # -- on anything non-numeric. UNSET is non-numeric on purpose, so
+          # it must never reach that parse: only forward the two threshold
+          # env vars once a human has replaced UNSET with a measured floor
+          # (see the env: block at the top of this file).
+          #
+          # The workflow-level env: block above puts UNSET into this step's
+          # own process environment, and `env VAR=value cmd` only adds or
+          # overrides listed names -- it does not strip a name the process
+          # already inherited. Omitting the two vars from the `env`
+          # invocation below therefore does NOT stop sbcl from seeing them:
+          # they would still arrive via inheritance. `-u` removes them from
+          # the child's environment explicitly so t/runner.lisp:20-30 sees
+          # them as genuinely absent (host-kit:getenv returns NIL) instead
+          # of the string "UNSET".
+          if [ "$CL_TUI_KIT_MIN_EXPRESSION_COVERAGE" = "UNSET" ] || \
+             [ "$CL_TUI_KIT_MIN_BRANCH_COVERAGE" = "UNSET" ]; then
+            nix develop --no-update-lock-file --command env \
+              -u CL_TUI_KIT_MIN_EXPRESSION_COVERAGE \
+              -u CL_TUI_KIT_MIN_BRANCH_COVERAGE \
+              CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY="$report_directory" \
+              sbcl --script run-coverage.lisp
+            echo "::error::Coverage ratchet floor is still UNSET (CL_TUI_KIT_MIN_EXPRESSION_COVERAGE / CL_TUI_KIT_MIN_BRANCH_COVERAGE in the env: block at the top of .github/workflows/ci.yml). Read the 'Source coverage: expressions X/Y, branches A/B' line printed above, set both env values to the measured floor (or lower, for headroom), and commit that change -- this job intentionally fails until then."
+            exit 1
+          else
+            nix develop --no-update-lock-file --command env \
+              CL_TUI_KIT_COVERAGE_REPORT_DIRECTORY="$report_directory" \
+              CL_TUI_KIT_MIN_EXPRESSION_COVERAGE="$CL_TUI_KIT_MIN_EXPRESSION_COVERAGE" \
+              CL_TUI_KIT_MIN_BRANCH_COVERAGE="$CL_TUI_KIT_MIN_BRANCH_COVERAGE" \
+              sbcl --script run-coverage.lisp
+          fi
 
   # docs.root = ./docs (flake.nix:158) makes cl-nix-forge's mkPackageFlake
   # emit a packages.<system>.docs output (the --strict MkDocs-Material
@@ -106,3 +170,174 @@ jobs:
 
       - name: nix build .#docs
         run: nix build .#docs --print-build-logs
+
+  # Exercises the plain-SBCL path README documents (no Nix), which the `test`
+  # job above never touches: cl-nix-forge's mkPackageFlake resolves cl-weave,
+  # cl-tty-kit, and the rest as flake inputs, not as sibling checkouts, so a
+  # regression in run-tests.lisp's own sibling-discovery fallback
+  # (run-tests.lisp:3-43, used when a system isn't already registered with
+  # ASDF) would ship unnoticed without a job that takes this path for real.
+  plain-sbcl:
+    name: sbcl --script run-tests.lisp (no Nix)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout cl-tui-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: cl-tui-kit
+
+      # run-tests.lisp:3-43 discovers each sibling at ../<name>/<name>.asd
+      # relative to the cl-tui-kit checkout, so `path:` below must place
+      # each one as a literal sibling directory of `cl-tui-kit/`. A git tag
+      # is mutable -- it can be moved to point at a different commit -- so
+      # `ref:` below is pinned to the commit SHA flake.lock already records
+      # for each dependency (every other third-party input in this file is
+      # SHA-pinned the same way: actions/checkout and install-nix-action
+      # above). This keeps the plain-SBCL job and the Nix-based `test` job
+      # building the exact same source rather than merely the same tag name.
+      # The tag is kept in a trailing comment so a human can still read the
+      # version; re-derive both by reading flake.lock's `nerima-lisp/<name>`
+      # node after any dependency bump there.
+      - name: Checkout cl-host-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-host-kit
+          ref: ec565470b634605e23b0d6eef0645eb15e8e3356 # v0.3.1
+          path: cl-host-kit
+
+      - name: Checkout cl-codec-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-codec-kit
+          ref: e30be513f5f8e936e968ff8d7910f43ef986ba6f # v0.5.0
+          path: cl-codec-kit
+
+      - name: Checkout cl-boundary-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-boundary-kit
+          ref: 62e4a7df3e52061c38b7ff4f596436bdda985f71 # v2.3.0
+          path: cl-boundary-kit
+
+      - name: Checkout cl-date-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-date-kit
+          ref: 5671c20eddb901ecbe9f5d66b59ea92ac97aa411 # v1.0.0
+          path: cl-date-kit
+
+      - name: Checkout cl-concurrent-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-concurrent-kit
+          ref: 0ef20d36a0a12800f231172227bd94034611c639 # v0.6.1
+          path: cl-concurrent-kit
+
+      - name: Checkout cl-tty-kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-tty-kit
+          ref: add24964a286720baa9e08722f4b611fcefdf22f # v1.6.1
+          path: cl-tty-kit
+
+      - name: Checkout cl-weave
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nerima-lisp/cl-weave
+          ref: 29bba54f1d711b07cc6244990d0ceff0faeec832 # v1.3.0
+          path: cl-weave
+
+      # ubuntu-24.04 (not ubuntu-latest, which floats onto the next Ubuntu
+      # release on its own schedule) pins the apt archive pocket this
+      # installs from, so the resolved sbcl package is a function of one
+      # fixed Ubuntu release rather than whatever "latest" rolls onto next.
+      - name: Install SBCL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends sbcl
+          sbcl --version
+
+      # Relies on GitHub Actions' default `bash -eo pipefail` for run: steps:
+      # if sbcl exits non-zero anywhere in the pipeline below (including the
+      # t/runner.lisp:47-48 error on zero selected tests), pipefail makes the
+      # whole pipeline non-zero and -e aborts the step immediately, before
+      # the grep-based check even runs.
+      - name: sbcl --script run-tests.lisp
+        working-directory: cl-tui-kit
+        run: |
+          output="$RUNNER_TEMP/plain-sbcl-run-tests.log"
+          sbcl --script run-tests.lisp 2>&1 | tee "$output"
+
+          # Belt-and-braces beyond the zero-tests error above: assert the
+          # "Selected: N" line t/runner.lisp:72 prints is present and
+          # non-zero, so neither a runner change nor a future refactor of
+          # this step's shell (e.g. dropping pipefail) can turn a
+          # zero-tests run into a silent green.
+          selected_line=$(grep -E '^Selected: [0-9]+$' "$output" || true)
+          if [ -z "$selected_line" ]; then
+            echo "::error::run-tests.lisp did not print a 'Selected: N' line -- treating this as a failed run (see $output)."
+            exit 1
+          fi
+          selected_count="${selected_line#Selected: }"
+          if [ "$selected_count" -eq 0 ]; then
+            echo "::error::run-tests.lisp selected 0 tests. A green exit with zero tests selected is a false pass, not a validated suite."
+            exit 1
+          fi
+          echo "Selected $selected_count tests."
+
+  # FR-006: the ten :version strings across cl-tui-kit.asd's defsystem forms
+  # (one per system except cl-tui-kit/test, which declares none) have no
+  # single source of truth enforcing agreement -- ASDF reads each :version
+  # independently and never cross-checks them. This job is that cross-check
+  # (current value: see cl-tui-kit.asd, not restated here so this comment
+  # cannot go stale on the next version bump). It also runs when release.yml
+  # re-invokes this workflow
+  # via workflow_call for a `v*` tag push (github.ref stays the tag's ref in
+  # that case: a reusable-workflow job runs under the same triggering event
+  # as its caller), so it additionally verifies the tag matches.
+  version-consistency:
+    name: cl-tui-kit.asd version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check :version strings agree
+        run: |
+          # perl, not sed/awk, per this project's text-processing convention.
+          # Anchored to a whole line so the two-argument dependency form
+          # `(:version "cl-weave" "1.3.0")` inside :depends-on is not read as
+          # a defsystem :version field -- an unanchored match extracts
+          # "cl-weave" and reports a disagreement that does not exist.
+          versions=$(perl -ne 'print "$1\n" if /^\s*:version\s+"([^"]+)"\s*$/' cl-tui-kit.asd)
+
+          # A pattern that stopped matching (an ASDF syntax change, a typo
+          # in this step) would make an empty $versions look identical to
+          # "everything agrees" below. Reject that case explicitly instead
+          # of reading an empty match set as a pass.
+          if [ -z "$versions" ]; then
+            echo "::error::No :version strings matched in cl-tui-kit.asd -- the extraction pattern is broken, not the version data."
+            exit 1
+          fi
+
+          distinct=$(printf '%s\n' "$versions" | sort -u)
+          distinct_count=$(printf '%s\n' "$distinct" | wc -l)
+          if [ "$distinct_count" -ne 1 ]; then
+            echo "::error::cl-tui-kit.asd has disagreeing :version strings: $(printf '%s' "$distinct" | tr '\n' ' ')"
+            exit 1
+          fi
+
+          version=$(printf '%s\n' "$distinct" | head -n1)
+          echo "asd_version=$version" >> "$GITHUB_ENV"
+          echo "All :version strings agree: $version"
+
+      - name: Check tag matches cl-tui-kit.asd version
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        run: |
+          tag="${{ github.ref_name }}"
+          expected_tag="v${asd_version}"
+          if [ "$tag" != "$expected_tag" ]; then
+            echo "::error::Tag $tag does not match cl-tui-kit.asd's :version ($asd_version, expected tag $expected_tag)."
+            exit 1
+          fi
+          echo "Tag $tag matches cl-tui-kit.asd version $asd_version."
