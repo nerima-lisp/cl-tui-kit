@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question
+    url: https://github.com/nerima-lisp/cl-tui-kit/discussions
+    about: Usage questions and general discussion.
+  - name: Security vulnerability
+    url: https://github.com/nerima-lisp/cl-tui-kit/security/advisories/new
+    about: Report a vulnerability privately; see SECURITY.md.

@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Every job defaults to read-only. Only the release job below escalates, and
+# only for itself: a job-level permissions: block overrides this
+# workflow-level default for that job alone (GitHub Actions semantics), so
+# the escalation cannot leak into the reused ci.yml jobs.
+permissions:
+  contents: read
+
+concurrency:
+  # Keyed on the ref alone, not ci.yml's ci-${{ github.workflow }}-${{
+  # github.ref }} pattern: github.workflow resolves to the caller's name
+  # ("Release") even inside the reused ci.yml jobs below, so reusing that
+  # exact group key here would needlessly collide with it.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Re-runs every real gate ci.yml defines for the exact commit being
+  # tagged -- the nix flake check matrix, the SB-COVER coverage ratchet,
+  # nix build .#docs, and the cl-tui-kit.asd version-consistency check
+  # (which additionally verifies this tag matches the .asd version, since
+  # github.ref_type == 'tag' holds true here) -- rather than trusting
+  # whichever earlier CI run happened to pass on this commit before it was
+  # tagged. ci.yml declares `workflow_call` in its on: block for exactly
+  # this reuse, and its own push.tags-ignore keeps this tag push from ALSO
+  # triggering a second, independent run of the same jobs directly.
+  ci:
+    uses: ./.github/workflows/ci.yml
+    # No secrets: key: ci.yml's only secrets. reference is secrets.GITHUB_TOKEN
+    # (ci.yml:81,111,169, as github_access_token: for cachix/install-nix-action).
+    # GITHUB_TOKEN is generated automatically for every job -- including jobs
+    # inside a called reusable workflow -- so it never needs to be passed via
+    # secrets: or secrets: inherit. `inherit` would instead hand every OTHER
+    # repository secret to this reused workflow too, including its
+    # plain-sbcl job, which checks out and executes seven third-party
+    # nerima-lisp repositories via ASDF (ci.yml:174-286). That job has no
+    # legitimate use for any secret this repo might add later (a deploy
+    # token, a package-registry token, ...), so it should never be reachable
+    # from one, and leaving secrets: unset instead of `inherit` is what
+    # keeps it unreachable.
+    permissions:
+      contents: read
+
+  release:
+    name: Create GitHub Release
+    needs: ci
+    runs-on: ubuntu-latest
+    # Scoped to only this job, per the task's constraint: none of the gates
+    # in the reused ci.yml job above need to write anything, so
+    # contents:write stays out of reach of every step except the one that
+    # actually creates the release.
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # gh, not a third-party release-creation Action: this repo has no
+      # commit SHA already verified for one (unlike actions/checkout and
+      # cachix/install-nix-action above, both pinned to a SHA the rest of
+      # this workflow already trusts), and the task brief prefers the gh
+      # CLI over adding an unpinned Action. gh ships preinstalled on
+      # GitHub-hosted runners and reads GH_TOKEN below for auth.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
