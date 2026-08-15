@@ -11,7 +11,7 @@ NIL when the caller only wants to flush a dirty frame."
   (check-type continuation function)
   (when event
     (application-dispatch-event application event))
-  (if (application-dirty-p application)
+  (if (%application-dirty-p application)
       (application-render/k
        application
        (lambda (rendered-application)
@@ -23,19 +23,19 @@ NIL when the caller only wants to flush a dirty frame."
   (application-step/k application event #'identity))
 
 (defun application-start (application)
-  (unless (application-running-p application)
+  (unless (%application-running-p application)
     (let ((backend (application-backend application)))
       (backend-open backend)
       (when (application-alternate-screen-p application)
         (backend-enter-alternate backend))
       (when (application-title application)
         (backend-set-title backend (application-title application))))
-    (setf (application-running-p application) t)
+    (setf (%application-running-p application) t)
     (application-render application))
   application)
 
 (defun application-stop (application)
-  (setf (application-running-p application) nil)
+  (setf (%application-running-p application) nil)
   application)
 
 (defun application-close (application)
@@ -66,7 +66,7 @@ NIL when the caller only wants to flush a dirty frame."
   (call-with-application-session
    application
    (lambda ()
-     (loop while (application-running-p application)
+     (loop while (%application-running-p application)
            for event = (funcall event-source)
            do (if (eq event eof-value)
                   (return)

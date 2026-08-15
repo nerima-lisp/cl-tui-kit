@@ -11,6 +11,57 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [4.0.0]
+
+The first three rounds audited only `defclass` `:accessor` slots. `grep -rn
+":read-only" src/*.lisp` returned nothing across the whole tree, which is the
+short version of what they missed: no `defstruct` slot had ever been made
+read-only, so struct-based state — focus trees, keymaps, viewports, themes,
+the event loop, event replay — was never looked at. This round audited both
+kinds.
+
+### Fixed
+
+- `tty-runtime-raw-mode-enabled-p` was writable, and `tty-runtime-stop` gates
+  its `disable-raw-mode` call on it. An external write made cleanup skip
+  restoring the terminal while still reporting success, leaving the user in
+  raw mode with echo off after what looked like a clean shutdown. This is the
+  only entry here that was a defect rather than an exposure.
+- `focus-tree-current` was writable, so a direct write could move focus to a
+  node outside an open modal's scope, escaping the focus trap that
+  `focus-tree-set-current` enforces.
+
+### Changed
+
+- Roughly thirty more accessors onto internal state are read-only, across
+  `focus`, `keymap`, `geometry`, `style`, `protocol`, `testing`, `tty`, the
+  widget layer, and the application runtime. Readers that previously handed
+  back a live list, rectangle, style, or capability struct now return a copy,
+  because blocking `setf` on the accessor does nothing about a caller reaching
+  internal state through the object it was given.
+- `widget-rectangle` and `widget-children` copy on read. Internal render and
+  layout paths use the private accessors, so no per-frame allocation was
+  added.
+- `viewport-bounds` copies on read and on write rather than becoming
+  read-only: no function owns it, so direct assignment is the interface, and
+  only the aliasing route needed closing.
+
+  **Breaking.** `setf` on the converted accessors no longer compiles, and
+  mutating a returned list or struct no longer reaches the object it came
+  from.
+
+### Deliberately unchanged
+
+- Widget content and configuration stay writable — `text-widget-text`,
+  `progress-widget-value`, `input-widget-value`, `widget-style` and their
+  kind. Assigning them is the interface.
+- `point`, `size`, and `rectangle` accessors stay writable. They are value
+  types an application builds and passes in; what changed is that readers
+  handing back the toolkit's *own* instance of one now copy it.
+- `notification-id` stays writable: `notification-center-push` assigns it
+  after construction when the caller supplied none, so it is not
+  construction-only state.
+
 ## [3.0.0]
 
 Applies the read-only policy by its own rule rather than to a list of symbols
@@ -152,7 +203,8 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/nerima-lisp/cl-tui-kit/releases/tag/v1.0.0

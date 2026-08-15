@@ -121,7 +121,12 @@ construct the final style explicitly with MAKE-STYLE."
     copy))
 
 (defun theme-style (theme role &optional fallback)
-  (or (gethash role (theme-styles theme)) fallback))
+  "Return a copy of THEME's style for ROLE, or FALLBACK when ROLE is unset.
+
+The returned style is independent of THEME; mutating it has no effect on
+the theme.  Use THEME-SET-STYLE to change a role's style."
+  (let ((style (gethash role (theme-styles theme))))
+    (if style (copy-style style) fallback)))
 
 (defun theme-set-style (theme role style)
   (check-type role symbol)

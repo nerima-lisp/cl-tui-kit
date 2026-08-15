@@ -32,7 +32,7 @@ paired with the synced child content; use TABS-WIDGET-SELECT to change it."
 (defun %tabs-sync-children (widget)
   (let ((content (and (%tabs-current-entry widget)
                       (tab-entry-content (%tabs-current-entry widget)))))
-    (setf (widget-children widget) (and content (list content)))
+    (setf (%widget-children widget) (and content (list content)))
     content))
 
 (defun make-tabs-widget (tabs &key (selected-index 0) id rectangle style theme keymap
@@ -71,7 +71,7 @@ paired with the synced child content; use TABS-WIDGET-SELECT to change it."
     widget))
 
 (defun %tabs-index-at-x (widget x)
-  (let ((cursor (rectangle-x (widget-rectangle widget))))
+  (let ((cursor (rectangle-x (%widget-rectangle widget))))
     (loop for tab in (tabs-widget-tabs widget) for index from 0
           for width = (+ 2 (string-cell-width (tab-entry-label tab)))
           do (when (and (<= cursor x) (< x (+ cursor width)))
@@ -88,8 +88,8 @@ paired with the synced child content; use TABS-WIDGET-SELECT to change it."
     (make-size (max header (size-width size)) (1+ (size-height size)))))
 
 (defmethod widget-layout ((widget tabs-widget) rectangle)
-  (setf (widget-rectangle widget) (copy-rectangle rectangle))
-  (let* ((area (widget-rectangle widget))
+  (setf (%widget-rectangle widget) (copy-rectangle rectangle))
+  (let* ((area (%widget-rectangle widget))
          (content (and (%tabs-current-entry widget)
                        (tab-entry-content (%tabs-current-entry widget))))
          (content-area (make-rectangle (rectangle-x area) (1+ (rectangle-y area))
@@ -99,7 +99,7 @@ paired with the synced child content; use TABS-WIDGET-SELECT to change it."
   widget)
 
 (defmethod widget-render ((widget tabs-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (header-style (%widget-role-style widget :border))
          (selected-style (%widget-role-style widget :accent))
          (muted-style (%widget-role-style widget :muted))
@@ -154,7 +154,7 @@ paired with the synced child content; use TABS-WIDGET-SELECT to change it."
                                            widget)))))
       ((and (typep event 'mouse-event)
             (eq (mouse-event-kind event) :press)
-            (= (mouse-event-y event) (rectangle-y (widget-rectangle widget))))
+            (= (mouse-event-y event) (rectangle-y (%widget-rectangle widget))))
        (let ((index (%tabs-index-at-x widget (mouse-event-x event))))
          (when (tabs-widget-select widget index)
            (select-action (tab-entry-key (nth index (tabs-widget-tabs widget)))

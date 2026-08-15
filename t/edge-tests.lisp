@@ -330,3 +330,18 @@
     (backend-set-cursor backend (make-point 7 5))
     (is-equal 7 (point-x (backend-cursor backend)))
     (is-equal 5 (point-y (backend-cursor backend)))))
+
+(deftest backend-capabilities-mutation-does-not-corrupt-backend (:backend)
+  (let* ((backend (make-backend
+                   :capabilities (make-backend-capabilities :color :true-color)))
+         (captured (backend-capabilities backend)))
+    (setf (backend-capabilities-color captured) :garbage)
+    (is-equal :true-color (backend-capabilities-color (backend-capabilities backend)))
+    (is (not (eq captured (backend-capabilities backend))))))
+
+(deftest backend-set-capability-still-takes-effect (:backend)
+  (let ((backend (make-backend
+                  :capabilities (make-backend-capabilities :color :none))))
+    (backend-set-capability backend :color :true-color)
+    (is-equal :true-color (backend-capabilities-color (backend-capabilities backend)))
+    (is-equal :true-color (backend-capability backend :color))))

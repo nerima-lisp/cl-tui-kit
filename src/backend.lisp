@@ -60,7 +60,8 @@
          :writer (setf %backend-size))
    (capabilities :initarg :capabilities
                  :initform (make-backend-capabilities)
-                 :accessor backend-capabilities)
+                 :reader %backend-capabilities
+                 :writer (setf %backend-capabilities))
    (cursor :initarg :cursor :initform (make-point)
            :reader %backend-cursor
            :writer (setf %backend-cursor))
@@ -110,6 +111,15 @@ use BACKEND-SET-CURSOR to change a backend's cursor position."
   (check-type backend backend)
   (copy-point (%backend-cursor backend)))
 
+(defun backend-capabilities (backend)
+  "Return a copy of BACKEND's capabilities.
+
+The returned BACKEND-CAPABILITIES struct is a fresh copy, so mutating its
+slots has no effect on BACKEND; use BACKEND-SET-CAPABILITY to change a
+capability's value."
+  (check-type backend backend)
+  (copy-backend-capabilities (%backend-capabilities backend)))
+
 (defun backend-capability-states (backend)
   "Return a copy of BACKEND's normalized capability-state table.
 
@@ -129,7 +139,7 @@ CAPABILITY is one of :COLOR, :UNICODE, :MOUSE, :CLIPBOARD, or
 :ALTERNATE-SCREEN.  Unknown capabilities return NIL so adapters can probe
 optional features without depending on implementation-specific slots."
   (check-type backend backend)
-  (let ((capabilities (backend-capabilities backend)))
+  (let ((capabilities (%backend-capabilities backend)))
     (case capability
       (:color (backend-capabilities-color capabilities))
       (:unicode (backend-capabilities-unicode capabilities))
@@ -181,7 +191,7 @@ terminal itself.  COLOR, UNICODE, and MOUSE use keyword levels; CLIPBOARD
 accepts an adapter-defined value; ALTERNATE-SCREEN is normalized to boolean."
   (check-type backend backend)
   (%check-backend-capability capability)
-  (let ((capabilities (backend-capabilities backend)))
+  (let ((capabilities (%backend-capabilities backend)))
     (case capability
       (:color
        (check-type value keyword)

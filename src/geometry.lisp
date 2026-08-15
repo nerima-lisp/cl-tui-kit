@@ -243,9 +243,16 @@ flexibility is used by layout containers when extra space is distributed."
     (when maximum (setf value (min value maximum)))
     (max 0 (min available (max minimum value)))))
 
-(defstruct (clipping-region (:constructor %make-clipping-region (rectangle))
+(defstruct (clipping-region (:constructor %make-clipping-region (%rectangle))
                             (:copier nil))
-  rectangle)
+  %rectangle)
+
+(defun clipping-region-rectangle (region)
+  "Return a copy of REGION's clipping rectangle.
+
+The returned rectangle is independent of REGION; mutating it has no effect
+on the clipping region."
+  (copy-rectangle (clipping-region-%rectangle region)))
 
 (defun make-clipping-region (&optional (rectangle (make-rectangle)))
   (%make-clipping-region (copy-rectangle rectangle)))
@@ -253,12 +260,23 @@ flexibility is used by layout containers when extra space is distributed."
 (defstruct (viewport
             (:copier nil)
             (:constructor %make-viewport
-                (bounds content-width content-height %offset-x %offset-y)))
-  (bounds (make-rectangle) :type rectangle)
+                (%bounds content-width content-height %offset-x %offset-y)))
+  (%bounds (make-rectangle) :type rectangle)
   (content-width 0 :type (integer 0))
   (content-height 0 :type (integer 0))
   (%offset-x 0 :type (integer 0))
   (%offset-y 0 :type (integer 0)))
+
+(defun viewport-bounds (viewport)
+  "Return a copy of VIEWPORT's bounding rectangle.
+
+The returned rectangle is independent of VIEWPORT; mutating it has no
+effect on VIEWPORT.  Assign a new bounds rectangle with (SETF
+VIEWPORT-BOUNDS)."
+  (copy-rectangle (viewport-%bounds viewport)))
+
+(defun (setf viewport-bounds) (new-bounds viewport)
+  (setf (viewport-%bounds viewport) (copy-rectangle new-bounds)))
 
 (defun viewport-offset-x (viewport)
   "Return VIEWPORT's horizontal scroll offset.
@@ -284,11 +302,11 @@ subsystem; use VIEWPORT-SCROLL-TO or VIEWPORT-SCROLL-BY to change it."
 
 (defun viewport-scroll-x-max (viewport)
   (max 0 (- (viewport-content-width viewport)
-            (rectangle-width (viewport-bounds viewport)))))
+            (rectangle-width (viewport-%bounds viewport)))))
 
 (defun viewport-scroll-y-max (viewport)
   (max 0 (- (viewport-content-height viewport)
-            (rectangle-height (viewport-bounds viewport)))))
+            (rectangle-height (viewport-%bounds viewport)))))
 
 (defun viewport-scroll-to (viewport x y)
   (setf (viewport-%offset-x viewport)
@@ -303,7 +321,7 @@ subsystem; use VIEWPORT-SCROLL-TO or VIEWPORT-SCROLL-BY to change it."
                       (+ (viewport-%offset-y viewport) (%coordinate dy 'dy))))
 
 (defun viewport-visible-rectangle (viewport)
-  (let ((bounds (viewport-bounds viewport)))
+  (let ((bounds (viewport-%bounds viewport)))
     (make-rectangle (viewport-%offset-x viewport)
                     (viewport-%offset-y viewport)
                     (rectangle-width bounds)

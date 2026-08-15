@@ -5,19 +5,48 @@
 (defclass application ()
   ((backend :initarg :backend :accessor application-backend)
    (root :initarg :root :accessor application-root)
-   (surface :initarg :surface :accessor application-surface)
-   (focus-tree :initarg :focus-tree :accessor application-focus-tree)
+   (surface :initarg :surface :accessor %application-surface)
+   (focus-tree :initarg :focus-tree :accessor %application-focus-tree)
    (keymap-state :initarg :keymap-state :accessor application-keymap-state
                  :initform (make-keymap-state))
-   (running-p :initarg :running-p :accessor application-running-p
+   (running-p :initarg :running-p :accessor %application-running-p
               :initform nil)
-   (dirty-p :initarg :dirty-p :accessor application-dirty-p :initform t)
+   (dirty-p :initarg :dirty-p :accessor %application-dirty-p :initform t)
    (last-action :initarg :last-action :accessor application-last-action
                 :initform nil)
    (alternate-screen-p :initarg :alternate-screen-p
                        :accessor application-alternate-screen-p
                        :initform t)
    (title :initarg :title :accessor application-title :initform nil)))
+
+(defun application-surface (application)
+  "Return APPLICATION's current render surface.
+
+This is replaced wholesale by APPLICATION-LAYOUT when the backend resizes;
+use that instead of assigning a new surface directly."
+  (%application-surface application))
+
+(defun application-focus-tree (application)
+  "Return APPLICATION's current focus tree.
+
+This is replaced wholesale by APPLICATION-REFRESH-FOCUS-TREE, which the
+application's own dispatch and layout keep synchronized with the widget
+tree; use that instead of assigning a new focus tree directly."
+  (%application-focus-tree application))
+
+(defun application-running-p (application)
+  "Return true while APPLICATION's event loop is active.
+
+Use APPLICATION-START and APPLICATION-STOP (or APPLICATION-CLOSE) to change
+it."
+  (%application-running-p application))
+
+(defun application-dirty-p (application)
+  "Return true when APPLICATION has pending changes to render.
+
+Use APPLICATION-INVALIDATE to mark APPLICATION dirty; a render pass clears
+it."
+  (%application-dirty-p application))
 
 (defun make-widget-focus-tree (root)
   (check-type root widget)
@@ -42,11 +71,11 @@
   nil)
 
 (defun application-refresh-focus-tree (application)
-  (let* ((old-tree (application-focus-tree application))
+  (let* ((old-tree (%application-focus-tree application))
          (old-current (and old-tree (focus-tree-current old-tree)))
          (old-widget (and old-current (focus-node-widget old-current)))
          (tree (make-widget-focus-tree (application-root application))))
-    (setf (application-focus-tree application) tree)
+    (setf (%application-focus-tree application) tree)
     (when old-widget
       (let ((current (%find-focus-node (focus-tree-root tree) old-widget)))
         (when current
@@ -83,7 +112,7 @@
          (size (backend-size backend))
          (root (application-root application))
          (area (make-rectangle 0 0 (size-width size) (size-height size)))
-         (surface (application-surface application)))
+         (surface (%application-surface application)))
     (widget-layout root area)
     ;; Layout can change the active child set (for example, when a modal is
     ;; opened or closed directly by application code), so rebuild focus
@@ -91,13 +120,13 @@
     (application-refresh-focus-tree application)
     (unless (and (= (surface-width surface) (size-width size))
                  (= (surface-height surface) (size-height size)))
-      (setf (application-surface application)
+      (setf (%application-surface application)
             (make-surface (size-width size) (size-height size)))
-      (setf surface (application-surface application)))
+      (setf surface (%application-surface application)))
     (%sync-focus-node-rectangles (focus-tree-root
-                                  (application-focus-tree application)))
+                                  (%application-focus-tree application)))
     application))
 
 (defun application-invalidate (application)
-  (setf (application-dirty-p application) t)
+  (setf (%application-dirty-p application) t)
   application)

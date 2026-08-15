@@ -51,6 +51,39 @@ a HANDLER-CASE written against the core condition catches it too."))
 
 ;;;; Synchronous TTY runtime
 
+(defgeneric tty-runtime-started-p (runtime)
+  (:documentation "Return true once TTY-RUNTIME-START has taken effect and
+until TTY-RUNTIME-STOP clears it again."))
+
+(defgeneric tty-runtime-raw-mode-enabled-p (runtime)
+  (:documentation "Return true while TTY-RUNTIME-START has put the terminal
+into raw mode and TTY-RUNTIME-STOP has not yet disabled it.
+
+This is the achieved state, distinct from TTY-RUNTIME-RAW-MODE-P, which is
+the caller's construction-time request for whether raw mode should be
+used."))
+
+(defgeneric tty-runtime-input-closed-p (runtime)
+  (:documentation "Return true once TTY-RUNTIME-STOP has closed the input
+stream, which it does only when TTY-RUNTIME-CLOSE-INPUT-P was requested at
+construction."))
+
+(defgeneric tty-runtime-eof-p (runtime)
+  (:documentation "Return true once TTY-RUNTIME-NEXT-EVENT or
+TTY-RUNTIME-POLL has observed end of input.  TTY-RUNTIME-RESET clears it so
+an open stream can be reused."))
+
+(defgeneric tty-runtime-queue (runtime)
+  (:documentation "Return the runtime's pending parsed-event queue, filled by
+TTY-RUNTIME-NEXT-EVENT and TTY-RUNTIME-POLL as input is parsed and drained as
+events are returned to the caller."))
+
+(defgeneric tty-runtime-last-error (runtime)
+  (:documentation "Return the condition TTY-RUNTIME-STOP most recently caught
+while disabling raw mode or closing input, or NIL when the last stop
+succeeded.  TTY-RUNTIME-START and TTY-RUNTIME-RESET clear it before a fresh
+run."))
+
 (defclass tty-runtime ()
   ((input-stream :initarg :input-stream :initform *standard-input*
                  :accessor tty-runtime-input-stream)
@@ -66,13 +99,24 @@ a HANDLER-CASE written against the core condition catches it too."))
                   :accessor tty-runtime-close-input-p)
    (eof-value :initarg :eof-value :initform :eof
               :accessor tty-runtime-eof-value)
-   (started-p :initform nil :accessor tty-runtime-started-p)
+   (started-p :initform nil
+              :reader tty-runtime-started-p
+              :writer (setf %tty-runtime-started-p))
    (raw-mode-enabled-p :initform nil
-                       :accessor tty-runtime-raw-mode-enabled-p)
-   (input-closed-p :initform nil :accessor tty-runtime-input-closed-p)
-   (eof-p :initform nil :accessor tty-runtime-eof-p)
-   (queue :initform nil :accessor tty-runtime-queue)
-   (last-error :initform nil :accessor tty-runtime-last-error)))
+                       :reader tty-runtime-raw-mode-enabled-p
+                       :writer (setf %tty-runtime-raw-mode-enabled-p))
+   (input-closed-p :initform nil
+                   :reader tty-runtime-input-closed-p
+                   :writer (setf %tty-runtime-input-closed-p))
+   (eof-p :initform nil
+          :reader tty-runtime-eof-p
+          :writer (setf %tty-runtime-eof-p))
+   (queue :initform nil
+          :reader tty-runtime-queue
+          :writer (setf %tty-runtime-queue))
+   (last-error :initform nil
+              :reader tty-runtime-last-error
+              :writer (setf %tty-runtime-last-error))))
 
 (defun make-tty-runtime (&key (input-stream *standard-input*)
                               (file-descriptor 0)
@@ -110,13 +154,13 @@ available."
   (dolist (event events)
     (check-type event event))
   (when events
-    (setf (tty-runtime-queue runtime)
+    (setf (%tty-runtime-queue runtime)
           (nconc (tty-runtime-queue runtime) events)))
   runtime)
 
 (defun %tty-runtime-drain (runtime)
   (prog1 (tty-runtime-queue runtime)
-    (setf (tty-runtime-queue runtime) nil)))
+    (setf (%tty-runtime-queue runtime) nil)))
 
 (defun %tty-runtime-read-character (runtime &key no-hang)
   (let ((eof-marker (gensym "TTY-EOF-")))
@@ -159,11 +203,11 @@ available."
            :requested-operation 'tty-runtime-start
            :detail "Cannot restart an exhausted TTY runtime; call TTY-RUNTIME-RESET first."))
   (unless (tty-runtime-started-p runtime)
-    (setf (tty-runtime-last-error runtime) nil)
+    (setf (%tty-runtime-last-error runtime) nil)
     (when (tty-runtime-raw-mode-p runtime)
       (cl-tty-kit:enable-raw-mode (tty-runtime-file-descriptor runtime))
-      (setf (tty-runtime-raw-mode-enabled-p runtime) t))
-    (setf (tty-runtime-started-p runtime) t))
+      (setf (%tty-runtime-raw-mode-enabled-p runtime) t))
+    (setf (%tty-runtime-started-p runtime) t))
   runtime)
 
 (defun tty-runtime-stop (runtime)
@@ -174,7 +218,7 @@ available."
       (handler-case
           (progn
             (cl-tty-kit:disable-raw-mode (tty-runtime-file-descriptor runtime))
-            (setf (tty-runtime-raw-mode-enabled-p runtime) nil))
+            (setf (%tty-runtime-raw-mode-enabled-p runtime) nil))
         (condition (condition)
           (setf failure condition))))
     (when (and (tty-runtime-close-input-p runtime)
@@ -182,12 +226,12 @@ available."
       (handler-case
           (progn
             (close (tty-runtime-input-stream runtime))
-            (setf (tty-runtime-input-closed-p runtime) t))
+            (setf (%tty-runtime-input-closed-p runtime) t))
         (condition (condition)
           (unless failure
             (setf failure condition)))))
-    (setf (tty-runtime-started-p runtime) nil
-          (tty-runtime-last-error runtime) failure)
+    (setf (%tty-runtime-started-p runtime) nil
+          (%tty-runtime-last-error runtime) failure)
     (when failure
       (error failure)))
   runtime)
@@ -211,13 +255,13 @@ available."
            :requested-operation 'tty-runtime-reset
            :detail "Cannot reset a TTY runtime after its input stream was closed."))
   (terminal-input-parser-reset (tty-runtime-parser runtime))
-  (setf (tty-runtime-queue runtime) nil
-        (tty-runtime-eof-p runtime) nil
-        (tty-runtime-last-error runtime) nil)
+  (setf (%tty-runtime-queue runtime) nil
+        (%tty-runtime-eof-p runtime) nil
+        (%tty-runtime-last-error runtime) nil)
   runtime)
 
 (defun %tty-runtime-finish-eof (runtime)
-  (setf (tty-runtime-eof-p runtime) t)
+  (setf (%tty-runtime-eof-p runtime) t)
   (%tty-runtime-enqueue
    runtime
    (terminal-input-parser-flush (tty-runtime-parser runtime)))

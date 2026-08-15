@@ -19,7 +19,7 @@
 
 (defclass table-widget (widget)
   ((columns :initarg :columns :accessor table-widget-columns :initform nil)
-   (rows :initarg :rows :accessor table-widget-rows :initform nil)
+   (rows :initarg :rows :accessor %table-widget-rows :initform nil)
    (selected-row :initarg :selected-row :accessor %table-widget-selected-row
                  :initform nil)
    (selected-column :initarg :selected-column
@@ -50,6 +50,13 @@ clamped to the visible row window; it follows the selected row (see
 TABLE-WIDGET-SELECT-ROW) and WIDGET's rendered size and has no direct
 setter."
   (%table-widget-row-offset widget))
+
+(defun table-widget-rows (widget)
+  "Return a fresh list of WIDGET's rows.
+
+The returned list is a copy; mutating it does not affect WIDGET.  Use
+TABLE-WIDGET-SET-ROWS to replace WIDGET's rows."
+  (copy-list (%table-widget-rows widget)))
 
 (defun make-table-widget (columns rows &key selected-row (selected-column 0)
                                       (header-p t) (row-height 1) id rectangle style
@@ -128,7 +135,7 @@ setter."
 
 (defun %table-widths (widget)
   (let* ((columns (table-widget-columns widget))
-         (rows (table-widget-rows widget))
+         (rows (%table-widget-rows widget))
          (area-width (max 0 (rectangle-width (widget-rectangle widget))))
          (widths (%table-natural-widths columns rows)))
     (%table-expand-widths
@@ -154,7 +161,7 @@ setter."
                   (slot-value widget 'row-height)))))
 
 (defun %table-clamp-row-offset (widget)
-  (let* ((rows (length (table-widget-rows widget)))
+  (let* ((rows (length (%table-widget-rows widget)))
          (visible (%table-visible-row-count widget)))
     (setf (%table-widget-row-offset widget)
           (max 0 (min (%table-widget-row-offset widget)
@@ -182,7 +189,7 @@ setter."
 
 (defun table-widget-set-rows (widget rows)
   (check-type widget table-widget)
-  (setf (table-widget-rows widget) (copy-list rows))
+  (setf (%table-widget-rows widget) (copy-list rows))
   (when (and (%table-widget-selected-row widget)
              (>= (%table-widget-selected-row widget) (length rows)))
     (setf (%table-widget-selected-row widget)
@@ -192,7 +199,7 @@ setter."
 
 (defun table-widget-select-row (widget row)
   (check-type widget table-widget)
-  (when (and (integerp row) (<= 0 row) (< row (length (table-widget-rows widget))))
+  (when (and (integerp row) (<= 0 row) (< row (length (%table-widget-rows widget))))
     (setf (%table-widget-selected-row widget) row)
     (%table-ensure-selected-row-visible widget)
     widget))
@@ -208,7 +215,7 @@ setter."
   (let ((width (loop for column in (table-widget-columns widget)
                      sum (1+ (string-cell-width (table-column-label column)))))
         (height (+ (if (slot-value widget 'header-p) 1 0)
-                   (* (length (table-widget-rows widget))
+                   (* (length (%table-widget-rows widget))
                       (slot-value widget 'row-height)))))
     (make-size (max 1 width) (max 1 height))))
 
@@ -220,7 +227,7 @@ setter."
 (defmethod widget-render ((widget table-widget) surface)
   (let* ((area (widget-rectangle widget))
          (columns (table-widget-columns widget))
-         (rows (table-widget-rows widget))
+         (rows (%table-widget-rows widget))
          (widths (%table-widths widget))
          (row-height (slot-value widget 'row-height))
          (header-p (slot-value widget 'header-p))
@@ -265,7 +272,7 @@ setter."
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :grid))
     (setf (getf info :state)
-          (list :row-count (length (table-widget-rows widget))
+          (list :row-count (length (%table-widget-rows widget))
                 :column-count (length (table-widget-columns widget))
                 :selected-row (%table-widget-selected-row widget)
                 :selected-column (%table-widget-selected-column widget)))
@@ -277,7 +284,7 @@ setter."
 
 (defun %table-handle-vertical-key (widget key)
   (let ((selected (%table-widget-selected-row widget))
-        (row-count (length (table-widget-rows widget))))
+        (row-count (length (%table-widget-rows widget))))
     (cond
       ((member key '(:up :k-up) :test #'equalp)
        (when (and selected (plusp selected))
@@ -300,7 +307,7 @@ setter."
          (move-action :right 1 widget))))))
 
 (defun %table-handle-boundary-key (widget key)
-  (let ((rows (table-widget-rows widget)))
+  (let ((rows (%table-widget-rows widget)))
     (cond
       ((equalp key :home)
        (when rows
@@ -344,7 +351,7 @@ setter."
               (widget-rectangle widget)
               (make-point (mouse-event-x event) (mouse-event-y event))))
     (let* ((area (widget-rectangle widget))
-           (rows (table-widget-rows widget))
+           (rows (%table-widget-rows widget))
            (header-offset (if (slot-value widget 'header-p) 1 0))
            (local-row (floor (- (mouse-event-y event) (rectangle-y area)
                                 header-offset)

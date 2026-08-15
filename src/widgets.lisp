@@ -5,7 +5,7 @@
 
 (defclass widget ()
   ((id :initarg :id :accessor widget-id :initform nil)
-   (rectangle :initarg :rectangle :accessor widget-rectangle
+   (rectangle :initarg :rectangle :accessor %widget-rectangle
               :initform (make-rectangle))
    (style :initarg :style :accessor widget-style :initform (make-style))
    (theme :initarg :theme :accessor widget-theme :initform (default-theme))
@@ -21,7 +21,7 @@
                            :accessor widget-description :initform nil)
    (accessible-help-text :initarg :accessible-help-text
                          :accessor widget-help-text :initform nil)
-   (children :initarg :children :accessor widget-children :initform nil)))
+   (children :initarg :children :accessor %widget-children :initform nil)))
 
 (defun make-widget (&key id rectangle style theme keymap focusable-p
                          (enabled-p t) semantic-role accessible-label
@@ -34,6 +34,21 @@
                  :accessible-description accessible-description
                  :accessible-help-text accessible-help-text
                  :children children))
+
+(defun widget-rectangle (widget)
+  "Return a copy of WIDGET's layout rectangle.
+
+The returned RECTANGLE is a fresh copy; mutating it has no effect on WIDGET.
+WIDGET-LAYOUT is what actually repositions a widget; code that needs to bypass
+layout (for example a test positioning a widget directly) reaches the internal
+%WIDGET-RECTANGLE accessor instead."
+  (copy-rectangle (%widget-rectangle widget)))
+
+(defun widget-children (widget)
+  "Return a fresh list of WIDGET's children.
+
+The returned list is a copy; mutating it does not affect WIDGET."
+  (copy-list (%widget-children widget)))
 
 (defgeneric widget-preferred-size (widget))
 (defgeneric widget-layout (widget rectangle))
@@ -59,7 +74,7 @@
   t)
 
 (defmethod widget-interactive-children ((widget widget))
-  (widget-children widget))
+  (%widget-children widget))
 
 (defmethod widget-capture-event-p ((widget widget) event)
   (declare (ignore widget event))
@@ -70,13 +85,13 @@
   (make-size))
 
 (defmethod widget-layout ((widget widget) rectangle)
-  (setf (widget-rectangle widget) (copy-rectangle rectangle))
-  (dolist (child (widget-children widget))
+  (setf (%widget-rectangle widget) (copy-rectangle rectangle))
+  (dolist (child (%widget-children widget))
     (widget-layout child rectangle))
   widget)
 
 (defmethod widget-render ((widget widget) surface)
-  (dolist (child (widget-children widget))
+  (dolist (child (%widget-children widget))
     (widget-render child surface))
   widget)
 
@@ -154,12 +169,12 @@
                (1+ (count #\Newline text)))))
 
 (defmethod widget-render ((widget text-widget) surface)
-  (surface-draw-text surface (rectangle-x (widget-rectangle widget))
-                      (rectangle-y (widget-rectangle widget))
+  (surface-draw-text surface (rectangle-x (%widget-rectangle widget))
+                      (rectangle-y (%widget-rectangle widget))
                       (text-widget-text widget)
                       :style (%widget-role-style widget
                                                  (slot-value widget 'role))
-                      :max-width (rectangle-width (widget-rectangle widget)))
+                      :max-width (rectangle-width (%widget-rectangle widget)))
   widget)
 
 (defclass box-widget (widget)
@@ -191,7 +206,7 @@
                   (padding-bottom padding) 2))))
 
 (defmethod widget-render ((widget box-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (border-style (%widget-role-style widget :border))
          (inner (rectangle-inset (rectangle-inset area (make-padding :all 1))
                                  (slot-value widget 'padding)))
@@ -204,7 +219,7 @@
 
 (defmethod widget-layout ((widget box-widget) rectangle)
   (call-next-method)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (inner (rectangle-inset (rectangle-inset area (make-padding :all 1))
                                  (slot-value widget 'padding)))
          (child (box-widget-child widget)))
@@ -230,7 +245,7 @@
                  :accessible-help-text accessible-help-text))
 
 (defmethod widget-render ((widget divider-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (horizontal (eq (slot-value widget 'orientation) :horizontal))
          (glyph (if horizontal "─" "│")))
     (if horizontal
@@ -279,7 +294,7 @@
   (make-size (+ 4 (string-cell-width (button-widget-label widget))) 1))
 
 (defmethod widget-render ((widget button-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (label (format nil "[ ~A ]" (button-widget-label widget)))
          (style (%widget-role-style widget :accent)))
     (surface-fill-rectangle surface area #\Space style)
@@ -329,7 +344,7 @@
   (make-size (+ 4 (string-cell-width (checkbox-widget-label widget))) 1))
 
 (defmethod widget-render ((widget checkbox-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (text (format nil "[~A] ~A"
                        (if (checkbox-widget-checked-p widget) "X" " ")
                        (checkbox-widget-label widget)))
@@ -387,7 +402,7 @@
   (make-size 20 1))
 
 (defmethod widget-render ((widget progress-widget) surface)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (width (rectangle-width area))
          (maximum (progress-widget-maximum widget))
          (value (max 0 (min (progress-widget-value widget) maximum)))

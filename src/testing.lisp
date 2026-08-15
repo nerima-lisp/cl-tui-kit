@@ -106,11 +106,19 @@ without observing later mutations by the application."
   event)
 
 (defstruct (event-replay
-            (:constructor %make-event-replay (events index eof-value)))
+            (:constructor %make-event-replay (events %index eof-value)))
   "A deterministic, one-shot event reader for integration tests."
   (events nil :type list)
-  (index 0 :type fixnum)
+  (%index 0 :type fixnum)
   eof-value)
+
+(defun event-replay-index (replay)
+  "Return REPLAY's current position in its recorded events.
+
+This value is advanced by EVENT-REPLAY-NEXT and rewound by
+EVENT-REPLAY-RESET; it is not meant to be assigned directly."
+  (check-type replay event-replay)
+  (event-replay-%index replay))
 
 (defun make-event-replay (events &key (eof-value :eof))
   "Create a replay reader from EVENTS in their chronological order."
@@ -122,26 +130,26 @@ without observing later mutations by the application."
 (defun event-replay-next (replay)
   "Return the next recorded event, or REPLAY's EOF-VALUE when exhausted."
   (check-type replay event-replay)
-  (if (< (event-replay-index replay) (length (event-replay-events replay)))
-      (prog1 (nth (event-replay-index replay) (event-replay-events replay))
-        (incf (event-replay-index replay)))
+  (if (< (event-replay-%index replay) (length (event-replay-events replay)))
+      (prog1 (nth (event-replay-%index replay) (event-replay-events replay))
+        (incf (event-replay-%index replay)))
       (event-replay-eof-value replay)))
 
 (defun event-replay-reset (replay)
   "Rewind REPLAY to its first event."
   (check-type replay event-replay)
-  (setf (event-replay-index replay) 0)
+  (setf (event-replay-%index replay) 0)
   replay)
 
 (defun event-replay-exhausted-p (replay)
   (check-type replay event-replay)
-  (>= (event-replay-index replay)
+  (>= (event-replay-%index replay)
       (length (event-replay-events replay))))
 
 (defun event-replay-remaining-count (replay)
   (check-type replay event-replay)
   (max 0 (- (length (event-replay-events replay))
-            (event-replay-index replay))))
+            (event-replay-%index replay))))
 
 (defun test-backend-event-replay (backend &key (eof-value :eof))
   "Return a replay reader over BACKEND's recorded events."

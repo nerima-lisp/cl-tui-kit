@@ -4,7 +4,7 @@
   ((fields :initarg :fields :accessor form-widget-fields :initform nil)
    (validator :initarg :validator :accessor form-widget-validator
               :initform nil)
-   (errors :accessor form-widget-errors :initform nil)
+   (errors :accessor %form-widget-errors :initform nil)
    (submit-action :initarg :submit-action
                   :accessor %form-widget-submit-action
                   :initform nil)))
@@ -62,11 +62,18 @@ becomes the payload of a submit action."
         collect (cons (or (widget-id field) index)
                       (%form-field-value field))))
 
+(defun form-widget-errors (form)
+  "Return a fresh list of FORM's validation errors.
+
+The returned list is a copy; mutating it does not affect FORM.  Use
+FORM-WIDGET-VALIDATE to recompute it."
+  (copy-list (%form-widget-errors form)))
+
 (defun form-widget-validate (form)
   "Validate FORM and return true when no errors remain."
   (check-type form form-widget)
   (let ((validator (form-widget-validator form)))
-    (setf (form-widget-errors form)
+    (setf (%form-widget-errors form)
           (when validator
             (let ((result (funcall validator (form-widget-values form)
                                    form)))
@@ -74,14 +81,14 @@ becomes the payload of a submit action."
                 ((or (null result) (eq result t)) nil)
                 ((listp result) (copy-list result))
                 (t (list result))))))
-    (null (form-widget-errors form))))
+    (null (%form-widget-errors form))))
 
 (defun form-widget-submit (form)
   "Validate FORM and return a submit or validation-error action."
   (check-type form form-widget)
   (unless (form-widget-validate form)
     (return-from form-widget-submit
-      (custom-action :validation-error (form-widget-errors form) form)))
+      (custom-action :validation-error (%form-widget-errors form) form)))
   (let* ((values (form-widget-values form))
          (callback (%form-widget-submit-action form)))
     (if callback
@@ -96,12 +103,12 @@ becomes the payload of a submit action."
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :form))
     (setf (getf info :values) (form-widget-values widget)
-          (getf info :errors) (copy-list (form-widget-errors widget)))
+          (getf info :errors) (copy-list (%form-widget-errors widget)))
     info))
 
 (defmethod widget-preferred-size ((widget form-widget))
   (let* ((fields (form-widget-fields widget))
-         (errors (form-widget-errors widget))
+         (errors (%form-widget-errors widget))
          (field-width (loop for field in fields
                             maximize (size-width (widget-preferred-size field))))
          (error-width (loop for error in errors
@@ -114,8 +121,8 @@ becomes the payload of a submit action."
                (+ (or field-height 0) (length errors)))))
 
 (defmethod widget-layout ((widget form-widget) rectangle)
-  (setf (widget-rectangle widget) (copy-rectangle rectangle))
-  (let ((area (widget-rectangle widget))
+  (setf (%widget-rectangle widget) (copy-rectangle rectangle))
+  (let ((area (%widget-rectangle widget))
         (y (rectangle-y rectangle))
         (remaining (rectangle-height rectangle)))
     (dolist (field (form-widget-fields widget))
@@ -132,15 +139,15 @@ becomes the payload of a submit action."
 (defmethod widget-render ((widget form-widget) surface)
   (dolist (field (form-widget-fields widget))
     (widget-render field surface))
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (y (reduce #'max
                    (form-widget-fields widget)
                    :key (lambda (field)
                           (rectangle-bottom
-                           (widget-rectangle field)))
+                           (%widget-rectangle field)))
                    :initial-value (rectangle-y area)))
          (style (%widget-role-style widget :error)))
-    (loop for error in (form-widget-errors widget)
+    (loop for error in (%form-widget-errors widget)
           do (surface-draw-text surface (rectangle-x area) y (%text error)
                                 :style style
                                 :max-width (rectangle-width area))
@@ -198,7 +205,7 @@ becomes the payload of a submit action."
 (defmethod widget-render ((widget viewport-widget) surface)
   (let* ((child (%viewport-widget-child widget))
          (viewport (viewport-widget-viewport widget))
-         (area (widget-rectangle widget))
+         (area (%widget-rectangle widget))
          (preferred (and child (widget-preferred-size child)))
          (content-width (or (slot-value widget 'content-width)
                             (and preferred (size-width preferred))
@@ -236,27 +243,45 @@ becomes the payload of a submit action."
 
 (defclass modal-widget (widget)
   ((child :initarg :child :accessor %modal-widget-child :initform nil)
-   (open-p :initarg :open-p :accessor modal-widget-open-p :initform nil)
+   (open-p :initarg :open-p :accessor %modal-widget-open-p :initform nil)
    (dialog-rectangle :accessor %modal-dialog-rectangle
                      :initform (make-rectangle))
-   (result :initarg :result :accessor modal-widget-result :initform nil)
+   (result :initarg :result :accessor %modal-widget-result :initform nil)
    (close-reason :initarg :close-reason
-                 :accessor modal-widget-close-reason
+                 :accessor %modal-widget-close-reason
                  :initform nil)
    (buttons :initarg :buttons :accessor modal-widget-buttons :initform nil)
    (outside-close-p :initarg :outside-close-p
                     :accessor modal-widget-outside-close-p
                     :initform nil)))
 
+(defun modal-widget-open-p (widget)
+  "Return true when WIDGET's modal is currently open.
+
+Use MODAL-WIDGET-OPEN and MODAL-WIDGET-CLOSE to change it."
+  (%modal-widget-open-p widget))
+
+(defun modal-widget-result (widget)
+  "Return the result WIDGET was closed with, or NIL.
+
+This is reset by MODAL-WIDGET-OPEN and set by MODAL-WIDGET-CLOSE."
+  (%modal-widget-result widget))
+
+(defun modal-widget-close-reason (widget)
+  "Return the reason WIDGET was closed, or NIL while open.
+
+This is reset by MODAL-WIDGET-OPEN and set by MODAL-WIDGET-CLOSE."
+  (%modal-widget-close-reason widget))
+
 (defmethod widget-active-p ((widget modal-widget))
-  (modal-widget-open-p widget))
+  (%modal-widget-open-p widget))
 
 (defmethod widget-interactive-children ((widget modal-widget))
-  (when (modal-widget-open-p widget)
+  (when (%modal-widget-open-p widget)
     (call-next-method)))
 
 (defmethod widget-capture-event-p ((widget modal-widget) event)
-  (and (modal-widget-open-p widget)
+  (and (%modal-widget-open-p widget)
        (or (and (typep event 'key-event)
                 (equalp (key-event-key event) :escape))
            (and (typep event 'custom-event)
@@ -283,14 +308,14 @@ becomes the payload of a submit action."
                                    (copy-list buttons))))
 
 (defmethod widget-handle-child-action ((widget modal-widget) action)
-  (if (modal-widget-open-p widget)
+  (if (%modal-widget-open-p widget)
       (%modal-handle-child-action widget action)
       action))
 
 (defun modal-widget-open (widget)
-  (setf (modal-widget-open-p widget) t)
-  (setf (modal-widget-result widget) nil
-        (modal-widget-close-reason widget) nil)
+  (setf (%modal-widget-open-p widget) t)
+  (setf (%modal-widget-result widget) nil
+        (%modal-widget-close-reason widget) nil)
   ;; A child can have changed its preferred size while the modal was closed
   ;; (for example, after a form validation error).  Synchronize hit-test
   ;; rectangles before callers query them or dispatch the first event.
@@ -298,9 +323,9 @@ becomes the payload of a submit action."
   widget)
 
 (defun modal-widget-close (widget &optional result (reason :programmatic))
-  (setf (modal-widget-open-p widget) nil)
-  (setf (modal-widget-result widget) result
-        (modal-widget-close-reason widget) reason)
+  (setf (%modal-widget-open-p widget) nil)
+  (setf (%modal-widget-result widget) result
+        (%modal-widget-close-reason widget) reason)
   widget)
 
 (defun %modal-button-row-width (buttons)
@@ -311,7 +336,7 @@ becomes the payload of a submit action."
       0))
 
 (defun %modal-geometry (widget)
-  (let* ((area (widget-rectangle widget))
+  (let* ((area (%widget-rectangle widget))
          (child (%modal-widget-child widget))
          (buttons (modal-widget-buttons widget))
          (preferred (if child (widget-preferred-size child) (make-size 0 0)))
@@ -391,7 +416,7 @@ becomes the payload of a submit action."
     (make-size (+ 2 content-width) (max 1 (+ 2 content-height)))))
 
 (defmethod widget-layout ((widget modal-widget) rectangle)
-  (setf (widget-rectangle widget) (copy-rectangle rectangle))
+  (setf (%widget-rectangle widget) (copy-rectangle rectangle))
   (%modal-layout widget)
   widget)
 
@@ -399,17 +424,17 @@ becomes the payload of a submit action."
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :dialog))
     (setf (getf info :focusable-p)
-          (and (modal-widget-open-p widget)
+          (and (%modal-widget-open-p widget)
                (widget-focusable-p widget)))
     (setf (getf info :state)
-          (list :open-p (modal-widget-open-p widget)
-                :result (modal-widget-result widget)
-                :close-reason (modal-widget-close-reason widget)
+          (list :open-p (%modal-widget-open-p widget)
+                :result (%modal-widget-result widget)
+                :close-reason (%modal-widget-close-reason widget)
                 :button-count (length (modal-widget-buttons widget))))
     info))
 
 (defmethod widget-render ((widget modal-widget) surface)
-  (when (modal-widget-open-p widget)
+  (when (%modal-widget-open-p widget)
     (multiple-value-bind (dialog ignored-child-area button-area)
         (%modal-layout widget)
       (declare (ignore ignored-child-area))
@@ -423,7 +448,7 @@ becomes the payload of a submit action."
         (widget-render (%modal-widget-child widget) surface)))))
 
 (defmethod widget-handle-event ((widget modal-widget) event)
-  (when (modal-widget-open-p widget)
+  (when (%modal-widget-open-p widget)
     (%modal-layout widget)
     (cond
       ((and (typep event 'key-event)
@@ -446,7 +471,7 @@ becomes the payload of a submit action."
                      (find-if
                       (lambda (candidate)
                         (rectangle-contains-point-p
-                         (widget-rectangle candidate)
+                         (%widget-rectangle candidate)
                          (mouse-event-x event) (mouse-event-y event)))
                       (modal-widget-buttons widget))))
                (cond

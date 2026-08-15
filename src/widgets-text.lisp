@@ -47,7 +47,7 @@
 (defclass text-view-widget (widget)
   ((text :initarg :text :accessor text-view-widget-text :initform "")
    (wrap-p :initarg :wrap-p :accessor text-view-widget-wrap-p :initform t)
-   (offset :initarg :offset :accessor text-view-widget-offset :initform 0)
+   (offset :initarg :offset :accessor %text-view-widget-offset :initform 0)
    (search-query :initarg :search-query
                  :accessor text-view-widget-search-query :initform nil)))
 
@@ -73,6 +73,14 @@
                 (%split-widget-lines (text-view-widget-text widget)))
         (%split-widget-lines (text-view-widget-text widget)))))
 
+(defun text-view-widget-offset (widget)
+  "Return WIDGET's current scroll offset, in lines.
+
+This value is internal scroll state kept within WIDGET's line count and
+rendered height; use TEXT-VIEW-WIDGET-SCROLL-TO or TEXT-VIEW-WIDGET-SCROLL-BY
+to change it."
+  (%text-view-widget-offset widget))
+
 (defun %text-view-clamp-offset (widget offset)
   (let* ((height (max 0 (rectangle-height (widget-rectangle widget))))
          (maximum (max 0 (- (length (%text-view-lines widget)) height))))
@@ -86,14 +94,14 @@
 (defun text-view-widget-scroll-to (widget offset)
   (check-type widget text-view-widget)
   (check-type offset integer)
-  (setf (text-view-widget-offset widget)
+  (setf (%text-view-widget-offset widget)
         (%text-view-clamp-offset widget offset))
   widget)
 
 (defun text-view-widget-scroll-by (widget amount)
   (check-type amount integer)
   (text-view-widget-scroll-to widget
-                              (+ (text-view-widget-offset widget) amount)))
+                              (+ (%text-view-widget-offset widget) amount)))
 
 (defun text-view-widget-find (widget query &optional (start 0))
   (check-type widget text-view-widget)
@@ -114,7 +122,7 @@
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :document))
     (setf (getf info :state)
-          (list :offset (text-view-widget-offset widget)
+          (list :offset (%text-view-widget-offset widget)
                 :line-count (length (%text-view-lines widget))
                 :search-query (text-view-widget-search-query widget)))
     info))
@@ -123,7 +131,7 @@
   (let* ((area (widget-rectangle widget))
          (style (%widget-role-style widget :foreground))
          (lines (%text-view-lines widget))
-         (offset (text-view-widget-offset widget)))
+         (offset (%text-view-widget-offset widget)))
     (surface-fill-rectangle surface area #\Space style)
     (loop for row from 0 below (rectangle-height area)
           for index = (+ offset row)
