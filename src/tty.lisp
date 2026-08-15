@@ -276,7 +276,7 @@ escape sequences remain in the parser until more input or EOF arrives."
   (%tty-runtime-check runtime)
   (loop
     (when (tty-runtime-queue runtime)
-      (return (pop (tty-runtime-queue runtime))))
+      (return (pop (%tty-runtime-queue runtime))))
     (when (tty-runtime-eof-p runtime)
       (return (tty-runtime-eof-value runtime)))
     (tty-runtime-start runtime)

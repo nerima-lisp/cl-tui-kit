@@ -214,7 +214,7 @@
          (fallback-root (make-focus-node :fallback-root :scope-p t
                                          :children (list fallback-child)))
          (fallback-tree (make-focus-tree fallback-root)))
-    (setf (focus-tree-current fallback-tree) nil)
+    (setf (cl-tui-kit/layout::focus-tree-%current fallback-tree) nil)
     (focus-push-modal fallback-tree fallback-root)
     (focus-restore fallback-tree)
     (is-equal :fallback-child

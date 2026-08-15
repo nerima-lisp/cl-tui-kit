@@ -64,7 +64,7 @@
            (tree (make-focus-tree
                   (make-focus-node :root :scope-p t
                                    :children (list child)))))
-      (setf (focus-tree-current tree) nil)
+      (setf (cl-tui-kit/layout::focus-tree-%current tree) nil)
       (is-equal :child (focus-node-id (focus-next tree)))))
 
   (deftest tree-model-accepts-plain-list-children (:edge-cases)
