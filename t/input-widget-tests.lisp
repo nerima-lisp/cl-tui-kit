@@ -64,6 +64,26 @@
     (widget-handle-event input (test-key :left))
     (is-equal 2 (input-widget-cursor input))))
 
+(deftest input-widget-clear-selection-empties-a-real-selection
+    (:widgets)
+  ;; INPUT-WIDGET-CLEAR-SELECTION (src/input-editing.lisp:106-108) was never
+  ;; exercised in T/, directly or via any keybinding.  Establish a real
+  ;; selection through the same shift+arrow path a user drives, then assert
+  ;; on observable selection state -- not on the function's return value.
+  (let ((input (make-input-widget
+                :value "one two"
+                :rectangle (make-rectangle 0 0 12 1))))
+    (widget-handle-event input (test-key :home))
+    (widget-handle-event input (test-key :right :shift))
+    (widget-handle-event input (test-key :right :shift))
+    (is-equal "on" (input-widget-selected-text input))
+    (is (input-widget-selection-start input))
+    (is (input-widget-selection-end input))
+    (input-widget-clear-selection input)
+    (is (null (input-widget-selection-start input)))
+    (is (null (input-widget-selection-end input)))
+    (is-equal "" (input-widget-selected-text input))))
+
 (deftest input-paste-history-and-key-actions (:widgets)
   (is (signals-error (make-input-widget :max-history 0)))
   (let ((input (make-input-widget

@@ -17,13 +17,19 @@
 
 (defun indexed-color (index)
   (unless (and (integerp index) (<= 0 index 255))
-    (error "Indexed terminal colors must be integers from 0 through 255."))
+    (error 'invalid-range-error
+           :context 'index
+           :datum index
+           :expected "an integer from 0 through 255"))
   (%make-color :indexed index))
 
 (defun rgb-color (red green blue)
   (dolist (component (list red green blue))
     (unless (and (integerp component) (<= 0 component 255))
-      (error "RGB components must be integers from 0 through 255.")))
+      (error 'invalid-range-error
+             :context 'rgb-component
+             :datum component
+             :expected "an integer from 0 through 255")))
   (%make-color :rgb (list red green blue)))
 
 (defun color= (left right)

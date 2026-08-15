@@ -14,13 +14,20 @@
 (defun make-tree-model (&key root-count root-at key-at label-at children expanded-p
                                   render-item)
   (unless (or (integerp root-count) (functionp root-count))
-    (error "TREE-MODEL :ROOT-COUNT must be an integer or function."))
+    (error 'invalid-type-error :context 'root-count :datum root-count
+           :expected-type '(or integer function)))
   (when (and (integerp root-count) (minusp root-count))
-    (error "TREE-MODEL :ROOT-COUNT must be non-negative."))
-  (unless (functionp root-at) (error "TREE-MODEL :ROOT-AT must be a function."))
-  (unless (functionp key-at) (error "TREE-MODEL :KEY-AT must be a function."))
+    (error 'invalid-range-error :context 'root-count :datum root-count
+           :expected "a non-negative integer"))
+  (unless (functionp root-at)
+    (error 'invalid-type-error :context 'root-at :datum root-at
+           :expected-type 'function))
+  (unless (functionp key-at)
+    (error 'invalid-type-error :context 'key-at :datum key-at
+           :expected-type 'function))
   (unless (functionp label-at)
-    (error "TREE-MODEL :LABEL-AT must be a function."))
+    (error 'invalid-type-error :context 'label-at :datum label-at
+           :expected-type 'function))
   (make-instance 'tree-model :root-count root-count :root-at root-at
                  :key-at key-at :label-at label-at :children children
                  :expanded-p (or expanded-p (lambda (node) (declare (ignore node)) nil))

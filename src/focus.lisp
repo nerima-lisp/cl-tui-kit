@@ -65,11 +65,13 @@
 (defun focus-tree-set-current (tree node)
   (check-type tree focus-tree)
   (unless (%node-in-tree-p node (focus-tree-root tree))
-    (error "Focus node is not part of this focus tree."))
+    (error 'focus-error :context 'focus-tree-set-current
+                         :detail "Focus node is not part of this focus tree."))
   (when (and (focus-tree-modal-stack tree)
              (not (%node-in-tree-p node
                                    (first (first (focus-tree-modal-stack tree))))))
-    (error "Focus node is outside the active modal scope."))
+    (error 'focus-error :context 'focus-tree-set-current
+                         :detail "Focus node is outside the active modal scope."))
   (setf (focus-tree-current tree) node)
   node)
 
@@ -152,7 +154,8 @@
 (defun focus-push-modal (tree scope)
   (check-type scope focus-node)
   (unless (%node-in-tree-p scope (focus-tree-root tree))
-    (error "Modal focus scope is not part of this focus tree."))
+    (error 'focus-error :context 'focus-push-modal
+                         :detail "Modal focus scope is not part of this focus tree."))
   (push (list scope (focus-tree-current tree))
         (focus-tree-modal-stack tree))
   (setf (focus-tree-current tree) (or (%first-focusable scope) scope))

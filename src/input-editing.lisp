@@ -23,7 +23,8 @@
                                 accessible-description accessible-help-text)
   (check-type value string)
   (unless (and (integerp max-history) (plusp max-history))
-    (error "MAX-HISTORY must be a positive integer."))
+    (error 'invalid-range-error :context 'max-history :datum max-history
+           :expected "a positive integer"))
   (make-instance 'input-widget :value value :cursor (length value)
                  :scroll-offset 0
                  :placeholder (or placeholder "") :id id

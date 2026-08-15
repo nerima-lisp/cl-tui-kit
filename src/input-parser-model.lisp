@@ -4,7 +4,7 @@
 
 (defstruct (terminal-input-parser
             (:constructor %make-terminal-input-parser
-                (buffer pending-octets in-paste-p paste-buffer
+                (%buffer %pending-octets %in-paste-p %paste-buffer
                  max-sequence-length max-paste-length)))
   "State for parsing a terminal input byte stream.
 
@@ -12,12 +12,26 @@ The parser deliberately has no stream, thread, or file-descriptor dependency.
 An input source owns those resources and feeds octets or strings into this state
 machine. Incomplete escape sequences and UTF-8 sequences remain buffered until
 more input arrives."
-  (buffer "" :type string)
-  (pending-octets '() :type list)
-  (in-paste-p nil :type boolean)
-  (paste-buffer "" :type string)
+  (%buffer "" :type string)
+  (%pending-octets '() :type list)
+  (%in-paste-p nil :type boolean)
+  (%paste-buffer "" :type string)
   (max-sequence-length 256 :type (integer 1 *))
   (max-paste-length (* 1024 1024) :type (integer 1 *)))
+
+;;; The four slots above are mutated throughout the escape-sequence and paste
+;;; state machine, so they cannot be :read-only struct slots. Instead their
+;;; struct-generated accessors stay private (the %buffer slot name keeps them
+;;; under the default TERMINAL-INPUT-PARSER- conc-name but with a leading %),
+;;; and internal code throughout the parser calls those raw struct accessors
+;;; (TERMINAL-INPUT-PARSER-%BUFFER and so on) directly, with no wrapper layer
+;;; in between -- this project never DECLAIMs anything INLINE, so a hand-
+;;; written wrapper on the per-token drain loop would be a real, uninlined
+;;; function call added for no benefit. The public TERMINAL-INPUT-PARSER-*
+;;; names below are ordinary DEFUNs, not SETF-able accessors, so external
+;;; callers can no longer SETF them; the three that hand back a string or
+;;; list additionally return a defensive copy, so mutating the returned
+;;; value in place cannot desynchronize the state machine either.
 
 (defun make-terminal-input-parser (&key (max-sequence-length 256)
                                         (max-paste-length (* 1024 1024)))
@@ -30,19 +44,55 @@ more input arrives."
 (defun terminal-input-parser-reset (parser)
   "Discard all buffered input while retaining parser limits."
   (check-type parser terminal-input-parser)
-  (setf (terminal-input-parser-buffer parser) ""
-        (terminal-input-parser-pending-octets parser) '()
-        (terminal-input-parser-in-paste-p parser) nil
-        (terminal-input-parser-paste-buffer parser) "")
+  (setf (terminal-input-parser-%buffer parser) ""
+        (terminal-input-parser-%pending-octets parser) '()
+        (terminal-input-parser-%in-paste-p parser) nil
+        (terminal-input-parser-%paste-buffer parser) "")
   parser)
+
+(defun terminal-input-parser-buffer (parser)
+  "Return a copy of PARSER's buffered but not yet drained input.
+
+The returned string is a fresh copy; mutating it does not affect the
+parser's internal state. Call TERMINAL-INPUT-PARSER-RESET to clear that
+state in a way that keeps the state machine's other buffers consistent."
+  (check-type parser terminal-input-parser)
+  (copy-seq (terminal-input-parser-%buffer parser)))
+
+(defun terminal-input-parser-pending-octets (parser)
+  "Return a copy of PARSER's buffered but not yet decoded UTF-8 octets.
+
+The returned list is a fresh copy; mutating it does not affect the
+parser's internal state. Call TERMINAL-INPUT-PARSER-RESET to clear that
+state in a way that keeps the state machine's other buffers consistent."
+  (check-type parser terminal-input-parser)
+  (copy-list (terminal-input-parser-%pending-octets parser)))
+
+(defun terminal-input-parser-in-paste-p (parser)
+  "Return true when PARSER is currently inside a bracketed paste.
+
+This is internal parser state and must not be mutated directly; call
+TERMINAL-INPUT-PARSER-RESET to clear it in a way that keeps the state
+machine's other buffers consistent."
+  (check-type parser terminal-input-parser)
+  (terminal-input-parser-%in-paste-p parser))
+
+(defun terminal-input-parser-paste-buffer (parser)
+  "Return a copy of PARSER's accumulated bracketed-paste text.
+
+The returned string is a fresh copy; mutating it does not affect the
+parser's internal state. Call TERMINAL-INPUT-PARSER-RESET to clear that
+state in a way that keeps the state machine's other buffers consistent."
+  (check-type parser terminal-input-parser)
+  (copy-seq (terminal-input-parser-%paste-buffer parser)))
 
 (defun terminal-input-parser-pending-p (parser)
   "Return true when PARSER is waiting for more input."
   (check-type parser terminal-input-parser)
   (not (null
-        (or (plusp (length (terminal-input-parser-buffer parser)))
-            (terminal-input-parser-pending-octets parser)
-            (terminal-input-parser-in-paste-p parser)))))
+        (or (plusp (length (terminal-input-parser-%buffer parser)))
+            (terminal-input-parser-%pending-octets parser)
+            (terminal-input-parser-%in-paste-p parser)))))
 
 (defun %terminal-input-parser-utf8-decode-one (octets)
   (let* ((first (first octets))
@@ -82,21 +132,21 @@ more input arrives."
                        needed :valid))))))))
 
 (defun %terminal-input-parser-append-octets (parser octets)
-  (let ((remaining (append (terminal-input-parser-pending-octets parser)
+  (let ((remaining (append (terminal-input-parser-%pending-octets parser)
                            (coerce octets 'list))))
-    (setf (terminal-input-parser-pending-octets parser) '())
+    (setf (terminal-input-parser-%pending-octets parser) '())
     (loop while remaining do
       (multiple-value-bind (character consumed status)
           (%terminal-input-parser-utf8-decode-one remaining)
         (case status
           (:incomplete
-           (setf (terminal-input-parser-pending-octets parser) remaining)
+           (setf (terminal-input-parser-%pending-octets parser) remaining)
            (return))
           (otherwise
            (setf remaining (nthcdr consumed remaining)
-                 (terminal-input-parser-buffer parser)
+                 (terminal-input-parser-%buffer parser)
                  (concatenate 'string
-                              (terminal-input-parser-buffer parser)
+                              (terminal-input-parser-%buffer parser)
                               (string character))))))))
   parser)
 

@@ -24,9 +24,11 @@ becomes the payload of a submit action."
   (dolist (field fields)
     (check-type field widget))
   (when (and validator (not (functionp validator)))
-    (error "FORM validator must be a function or NIL."))
+    (error 'invalid-type-error :context 'validator :datum validator
+           :expected-type '(or function null)))
   (when (and submit-action (not (functionp submit-action)))
-    (error "FORM submit action must be a function or NIL."))
+    (error 'invalid-type-error :context 'submit-action :datum submit-action
+           :expected-type '(or function null)))
   (make-instance 'form-widget
                  :fields (copy-list fields)
                  :validator validator

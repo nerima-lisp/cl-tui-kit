@@ -2,6 +2,10 @@
 
 ;;;; Terminal input escape and protocol sequences
 
+;;; As in input-parser.lisp, every access here goes directly through the
+;;; internal raw struct accessors; the public TERMINAL-INPUT-PARSER-* names
+;;; are read-only and copy-on-read where the slot is a string or list.
+
 (defun %terminal-input-parser-modifiers (parameter)
   (let ((mask (max 0 (1- (or parameter 1)))))
     (normalize-modifiers
@@ -202,8 +206,8 @@
       ((and (char= final #\O) (zerop (length body)))
        (make-focus-event nil))
           ((and (char= final #\~) (eql (first parameters) 200))
-           (setf (terminal-input-parser-in-paste-p parser) t
-                 (terminal-input-parser-paste-buffer parser) "")
+           (setf (terminal-input-parser-%in-paste-p parser) t
+                 (terminal-input-parser-%paste-buffer parser) "")
            nil)
           ((and (plusp (length body)) (char= (char body 0) #\<))
            (or (%terminal-input-parser-mouse-event body final)
@@ -226,7 +230,7 @@
                                (list :body body :final final)))))))))
 
 (defun %terminal-input-parser-osc (parser)
-  (let* ((buffer (terminal-input-parser-buffer parser))
+  (let* ((buffer (terminal-input-parser-%buffer parser))
          (length (length buffer))
          (bel (position (code-char 7) buffer :start 2))
          (st (loop for index from 2 below (1- length)
@@ -245,10 +249,10 @@
               (%terminal-input-parser-osc-event
                (subseq buffer 2 terminator))
               :done)
-           (setf (terminal-input-parser-buffer parser)
+           (setf (terminal-input-parser-%buffer parser)
                  (subseq buffer (+ terminator terminator-length))))))
       ((> length (terminal-input-parser-max-sequence-length parser))
-       (setf (terminal-input-parser-buffer parser) "")
+       (setf (terminal-input-parser-%buffer parser) "")
        (values (make-custom-event
                 :input-overflow
                 (list :kind :escape-sequence
@@ -259,7 +263,7 @@
        (values nil :wait)))))
 
 (defun %terminal-input-parser-escape (parser)
-  (let* ((buffer (terminal-input-parser-buffer parser))
+  (let* ((buffer (terminal-input-parser-%buffer parser))
          (length (length buffer)))
     (cond
       ((= length 1)
@@ -269,7 +273,7 @@
            (cond
              ((>= length 6)
               (let ((event (%terminal-input-parser-x10-mouse-event buffer)))
-                (setf (terminal-input-parser-buffer parser)
+                (setf (terminal-input-parser-%buffer parser)
                       (subseq buffer 6))
                 (values (or event
                             (make-custom-event
@@ -279,7 +283,7 @@
                                                (subseq buffer 3 6)))))
                         :done)))
              ((> length (terminal-input-parser-max-sequence-length parser))
-              (setf (terminal-input-parser-buffer parser) "")
+              (setf (terminal-input-parser-%buffer parser) "")
               (values (make-custom-event
                        :input-overflow
                        (list :kind :escape-sequence
@@ -296,11 +300,11 @@
                 (let* ((body (subseq buffer 2 final))
                        (event (%terminal-input-parser-csi-event
                                parser body (char buffer final))))
-                  (setf (terminal-input-parser-buffer parser)
+                  (setf (terminal-input-parser-%buffer parser)
                         (subseq buffer (1+ final)))
                   (values event :done)))
                ((> length (terminal-input-parser-max-sequence-length parser))
-                (setf (terminal-input-parser-buffer parser) "")
+                (setf (terminal-input-parser-%buffer parser) "")
                 (values (make-custom-event
                          :input-overflow
                          (list :kind :escape-sequence
@@ -316,7 +320,7 @@
            (let ((event (%terminal-input-parser-key-for
                          (char buffer 2)
                          '())))
-             (setf (terminal-input-parser-buffer parser)
+             (setf (terminal-input-parser-%buffer parser)
                    (subseq buffer 3))
              (values (or event
                          (make-custom-event
@@ -325,6 +329,6 @@
                      :done))))
       (t
        (let ((character (char buffer 1)))
-         (setf (terminal-input-parser-buffer parser)
+         (setf (terminal-input-parser-%buffer parser)
                (subseq buffer 2))
          (values (make-key-event character :modifiers '(:alt)) :done))))))

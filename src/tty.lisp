@@ -1,5 +1,15 @@
 (in-package #:cl-tui-kit/tty)
 
+(define-condition tty-runtime-error (lifecycle-error) ()
+  (:documentation "A TTY-RUNTIME operation was attempted while the runtime was
+in a state that does not permit it.
+
+Defined here rather than in CL-TUI-KIT/CORE because CORE is SemVer-frozen
+while CL-TUI-KIT/TTY is the experimental integration tier; freezing this
+symbol in CORE would tie a stable package's contract to a consumer that may
+still change in a minor release.  It still inherits CORE's LIFECYCLE-ERROR, so
+a HANDLER-CASE written against the core condition catches it too."))
+
 ;;;; Optional integration with nerima-lisp's cl-tty-kit.  The backend keeps
 ;;;; terminal-size discovery and ANSI output separate from the synchronous
 ;;;; runtime below, which owns only raw-mode lifetime and input acquisition.
@@ -139,9 +149,15 @@ available."
   "Enable the runtime and, unless disabled, the terminal's raw mode."
   (%tty-runtime-check runtime)
   (when (tty-runtime-input-closed-p runtime)
-    (error "Cannot start a TTY runtime after its input stream was closed."))
+    (error 'tty-runtime-error
+           :current-state :input-closed
+           :requested-operation 'tty-runtime-start
+           :detail "Cannot start a TTY runtime after its input stream was closed."))
   (when (tty-runtime-eof-p runtime)
-    (error "Cannot restart an exhausted TTY runtime; call TTY-RUNTIME-RESET first."))
+    (error 'tty-runtime-error
+           :current-state :eof
+           :requested-operation 'tty-runtime-start
+           :detail "Cannot restart an exhausted TTY runtime; call TTY-RUNTIME-RESET first."))
   (unless (tty-runtime-started-p runtime)
     (setf (tty-runtime-last-error runtime) nil)
     (when (tty-runtime-raw-mode-p runtime)
@@ -185,9 +201,15 @@ available."
   (%tty-runtime-check runtime)
   (when (or (tty-runtime-started-p runtime)
             (tty-runtime-raw-mode-enabled-p runtime))
-    (error "Cannot reset a running TTY runtime; stop it first."))
+    (error 'tty-runtime-error
+           :current-state :running
+           :requested-operation 'tty-runtime-reset
+           :detail "Cannot reset a running TTY runtime; stop it first."))
   (when (tty-runtime-input-closed-p runtime)
-    (error "Cannot reset a TTY runtime after its input stream was closed."))
+    (error 'tty-runtime-error
+           :current-state :input-closed
+           :requested-operation 'tty-runtime-reset
+           :detail "Cannot reset a TTY runtime after its input stream was closed."))
   (terminal-input-parser-reset (tty-runtime-parser runtime))
   (setf (tty-runtime-queue runtime) nil
         (tty-runtime-eof-p runtime) nil

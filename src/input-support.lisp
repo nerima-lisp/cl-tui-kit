@@ -26,7 +26,8 @@
 (defun make-scroll-bar-widget (&key (orientation :vertical) position page-size
                                          content-size id rectangle style theme)
   (unless (member orientation '(:vertical :horizontal) :test #'eq)
-    (error "Scroll bar orientation must be :VERTICAL or :HORIZONTAL."))
+    (error 'invalid-option-error :context 'orientation :datum orientation
+           :allowed '(:vertical :horizontal)))
   (make-instance 'scroll-bar-widget :orientation orientation
                  :position (max 0 (or position 0))
                  :page-size (max 1 (or page-size 1))

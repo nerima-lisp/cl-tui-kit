@@ -92,7 +92,10 @@ grapheme-cluster conformance; see docs/src/guide/text-layout.md."
 (defun string-cell-width (text &key (tab-width 8)
                                      (ambiguous-width *ambiguous-width*))
   (unless (and (integerp tab-width) (plusp tab-width))
-    (error "TAB-WIDTH must be a positive integer."))
+    (error 'invalid-range-error
+           :context 'tab-width
+           :datum tab-width
+           :expected "a positive integer"))
   (let ((column 0)
         (maximum 0))
     (dolist (unit (text-units text) maximum)
@@ -110,9 +113,15 @@ grapheme-cluster conformance; see docs/src/guide/text-layout.md."
                                       (ambiguous-width *ambiguous-width*))
   "Clip a single display line to MAX-WIDTH cells without splitting a unit."
   (unless (and (integerp max-width) (>= max-width 0))
-    (error "MAX-WIDTH must be a non-negative integer."))
+    (error 'invalid-range-error
+           :context 'max-width
+           :datum max-width
+           :expected "a non-negative integer"))
   (unless (and (integerp tab-width) (plusp tab-width))
-    (error "TAB-WIDTH must be a positive integer."))
+    (error 'invalid-range-error
+           :context 'tab-width
+           :datum tab-width
+           :expected "a positive integer"))
   (let ((column 0)
         (output (make-array 0 :element-type 'character :adjustable t
                               :fill-pointer 0)))
@@ -137,7 +146,10 @@ grapheme-cluster conformance; see docs/src/guide/text-layout.md."
                                            (ambiguous-width *ambiguous-width*))
   "Return TEXT clipped to MAX-WIDTH cells, adding ELLIPSIS when needed."
   (unless (and (integerp max-width) (>= max-width 0))
-    (error "MAX-WIDTH must be a non-negative integer."))
+    (error 'invalid-range-error
+           :context 'max-width
+           :datum max-width
+           :expected "a non-negative integer"))
   (if (<= (string-cell-width text :tab-width tab-width
                              :ambiguous-width ambiguous-width)
           max-width)

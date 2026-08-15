@@ -25,22 +25,29 @@
 
 (defun %check-backend-capability (capability)
   (unless (%backend-capability-name-p capability)
-    (error "Unknown backend capability ~S.  Expected one of ~S."
-           capability
-           '(:color :unicode :mouse :clipboard :alternate-screen)))
+    (error 'invalid-option-error
+           :context 'capability
+           :datum capability
+           :allowed '(:color :unicode :mouse :clipboard :alternate-screen)))
   capability)
 
 (defun %check-backend-capability-state (state)
   (unless (member state '(:unknown :unsupported :supported :error)
                   :test #'eq)
-    (error "Invalid backend capability state ~S." state))
+    (error 'invalid-option-error
+           :context 'state
+           :datum state
+           :allowed '(:unknown :unsupported :supported :error)))
   state)
 
 (defun %copy-capability-states (states)
   (let ((copy (make-hash-table :test #'eq)))
     (when states
       (unless (hash-table-p states)
-        (error "CAPABILITY-STATES must be a hash table, got ~S." states))
+        (error 'invalid-type-error
+               :context 'capability-states
+               :datum (bounded-datum states)
+               :expected-type 'hash-table))
       (maphash (lambda (capability state)
                  (setf (gethash (%check-backend-capability capability) copy)
                        (%check-backend-capability-state state)))

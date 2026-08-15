@@ -20,8 +20,11 @@
         ((string-equal modifier "super") :super)
         ((string-equal modifier "hyper") :hyper)
         (t
-         (error "Unsupported modifier designator ~S. Use a keyword or CONTROL, CTRL, META, ALT, SHIFT, SUPER, or HYPER."
-                modifier)))))
+         (error 'invalid-option-error
+                :context 'modifier
+                :datum modifier
+                :allowed '(:control :ctrl :meta :alt :shift :super :hyper)
+                :detail "Unsupported modifier designator. Any keyword is accepted; a non-keyword designator must otherwise name one of the listed symbols.")))))
 
 (defun normalize-modifiers (modifiers)
   "Canonicalize modifier designators without interning user-provided names."

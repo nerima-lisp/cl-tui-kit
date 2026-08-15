@@ -1,6 +1,19 @@
 (defpackage #:cl-tui-kit/core
   (:use #:cl)
   (:export
+   ;; Conditions
+   #:cl-tui-kit-error #:cl-tui-kit-error-context #:cl-tui-kit-error-detail
+   #:invalid-argument-error #:invalid-argument-error-datum
+   #:invalid-type-error
+   #:invalid-range-error #:invalid-range-error-expected
+   #:invalid-option-error #:invalid-option-error-allowed
+   #:index-out-of-bounds-error #:index-out-of-bounds-error-index
+   #:index-out-of-bounds-error-count
+   #:protocol-error #:focus-error #:surface-error
+   #:callback-contract-error #:callback-contract-error-callback
+   #:callback-contract-error-value
+   #:lifecycle-error #:lifecycle-error-current-state
+   #:lifecycle-error-requested-operation
    ;; Geometry
    #:point #:point-x #:point-y #:make-point #:copy-point
    #:size #:size-width #:size-height #:make-size #:copy-size
@@ -274,7 +287,9 @@
            #:make-event-replay #:event-replay-next #:event-replay-reset
            #:event-replay-exhausted-p #:event-replay-remaining-count
            #:test-backend-event-replay #:test-backend-reset
-           #:surface-equal-p #:surface-cell-string #:assert-surface-text))
+           #:surface-equal-p #:surface-cell-string #:assert-surface-text
+           #:assertion-failed-error #:assertion-failed-error-expected
+           #:assertion-failed-error-actual))
 
 (defpackage #:cl-tui-kit/tty
   (:use #:cl #:cl-tui-kit/core #:cl-tui-kit/ansi)
@@ -289,7 +304,8 @@
            #:tty-runtime-close #:tty-runtime-reset
            #:tty-runtime-next-event #:tty-runtime-poll
            #:tty-runtime-event-source #:call-with-tty-runtime
-           #:with-tty-runtime))
+           #:with-tty-runtime
+           #:tty-runtime-error))
 
 (defpackage #:cl-tui-kit/codec
   (:use #:cl)

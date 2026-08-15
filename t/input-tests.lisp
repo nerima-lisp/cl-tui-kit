@@ -681,6 +681,39 @@
                                                (list 31 33 34))))))))
       (is-equal :terminal-sequence (custom-event-name event)))))
 
+(deftest terminal-input-parser-public-readers-return-defensive-copies
+    (:input-parser)
+  (let* ((escape (code-char 27))
+         (parser (make-terminal-input-parser)))
+    (is (null (terminal-input-parser-feed parser (format nil "~C[" escape))))
+    (let ((buffer (terminal-input-parser-buffer parser)))
+      (is-equal (format nil "~C[" escape) buffer)
+      ;; Destructively mutate the copy in place. If TERMINAL-INPUT-PARSER-
+      ;; BUFFER ever hands back the live internal string again instead of a
+      ;; copy, this corrupts the buffered "ESC [" into "ESC X" and the CSI
+      ;; sequence fed below is parsed as a bare Alt+X keypress instead of
+      ;; Ctrl+Up.
+      (setf (char buffer 1) #\X)
+      (is (not (eq buffer (terminal-input-parser-buffer parser))))
+      (let ((events (terminal-input-parser-feed parser "1;5A")))
+        (is-equal 1 (length events))
+        (is-equal :up (key-event-key (first events)))
+        (is-equal '(:ctrl) (key-event-modifiers (first events))))))
+  (let ((parser (make-terminal-input-parser)))
+    (is (null (terminal-input-parser-feed parser (vector #xe6))))
+    (let ((octets (terminal-input-parser-pending-octets parser)))
+      (is-equal (list #xe6) octets)
+      ;; Same idea for the octet list: corrupt the copy's first cons. If
+      ;; TERMINAL-INPUT-PARSER-PENDING-OCTETS ever hands back the live
+      ;; internal list, this replaces the buffered lead byte of a 3-byte
+      ;; UTF-8 sequence with 0, and the two continuation bytes fed below
+      ;; decode as garbage instead of completing "日".
+      (setf (car octets) 0)
+      (is (not (eq octets (terminal-input-parser-pending-octets parser))))
+      (let ((events (terminal-input-parser-feed parser (vector #x97 #xa5))))
+        (is-equal 1 (length events))
+        (is-equal "日" (text-input-event-text (first events)))))))
+
 (cl-weave:it-fuzz "terminal input parser accepts generated bounded text"
   ((input (cl-weave:gen-string
            :min-length 0
@@ -690,6 +723,22 @@
                                   (string (code-char 27))
                                   (string (code-char 7))))))
   (:trials 120 :timeout-per-trial 2)
-  (let ((parser (make-terminal-input-parser :max-sequence-length 64)))
-    (is (listp (terminal-input-parser-feed parser input)))
-    (is (listp (terminal-input-parser-flush parser)))))
+  ;; The original assertion only checked LISTP, which every reachable input
+  ;; already satisfies -- it could not distinguish correct parsing from
+  ;; garbage.  This strengthens it with two structural invariants: every
+  ;; returned element is a normalized EVENT, and parsing is deterministic
+  ;; (a fresh parser fed the same input produces the same events), while
+  ;; keeping the original crash-resistance property (a trial fails only if
+  ;; the parser signals an ERROR).
+  (let* ((parser (make-terminal-input-parser :max-sequence-length 64))
+         (fed-events (terminal-input-parser-feed parser input))
+         (flushed-events (terminal-input-parser-flush parser)))
+    (is (every #'event-p fed-events))
+    (is (every #'event-p flushed-events))
+    (let* ((replay-parser (make-terminal-input-parser :max-sequence-length 64))
+           (replay-fed-events
+             (terminal-input-parser-feed replay-parser input))
+           (replay-flushed-events
+             (terminal-input-parser-flush replay-parser)))
+      (is-equal fed-events replay-fed-events)
+      (is-equal flushed-events replay-flushed-events))))

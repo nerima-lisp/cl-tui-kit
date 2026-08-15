@@ -147,3 +147,20 @@
     (is (not (modal-widget-open-p modal)))
     (modal-widget-close modal)
     (is (null (getf (widget-accessibility-tree modal) :children)))))
+
+(deftest table-widget-selected-row-reader-is-read-only (:table-surface-text)
+  ;; Before this change TABLE-WIDGET-SELECTED-ROW was a plain CLOS :ACCESSOR,
+  ;; so (SETF (TABLE-WIDGET-SELECTED-ROW widget) 99) silently wrote past the
+  ;; row count, desyncing selection from TABLE-WIDGET-SELECT-ROW's bounds
+  ;; check and from the row offset that check maintains.  That raw SETF must
+  ;; now fail instead of being accepted.
+  (let ((table (make-table-widget
+                (list (make-table-column "A") (make-table-column "B"))
+                (list (list "a" "b") (list "c" "d") (list "e" "f"))
+                :selected-row 0
+                :rectangle (test-rectangle 0 0 4 3))))
+    (is-equal 0 (table-widget-selected-row table))
+    (is (signals-error (setf (table-widget-selected-row table) 99)))
+    (is-equal 0 (table-widget-selected-row table))
+    (is (table-widget-select-row table 2))
+    (is-equal 2 (table-widget-selected-row table))))

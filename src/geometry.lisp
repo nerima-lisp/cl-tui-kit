@@ -4,15 +4,13 @@
 ;;;; translated, but all extents are normalized to non-negative cell counts.
 
 (defun %coordinate (value name)
-  (declare (ignore name))
   (unless (integerp value)
-    (error 'type-error :datum value :expected-type 'integer))
+    (error 'invalid-type-error :context name :datum value :expected-type 'integer))
   value)
 
 (defun %extent (value name)
-  (declare (ignore name))
   (unless (integerp value)
-    (error 'type-error :datum value :expected-type '(integer 0)))
+    (error 'invalid-type-error :context name :datum value :expected-type '(integer 0)))
   (max 0 value))
 
 (defstruct (point (:constructor %make-point (x y))
@@ -184,17 +182,29 @@
                               (flex-width 0) (flex-height 0))
   (unless (and (realp flex-width) (>= flex-width 0)
                (realp flex-height) (>= flex-height 0))
-    (error "Flexibility must be a non-negative real number."))
+    (error 'invalid-range-error
+           :context "Flexibility"
+           :datum (list flex-width flex-height)
+           :expected "a non-negative real number"
+           :detail "Flexibility must be a non-negative real number."))
   (let* ((minimum-width (%extent min-width 'min-width))
          (maximum-width (%optional-extent max-width))
          (minimum-height (%extent min-height 'min-height))
          (maximum-height (%optional-extent max-height)))
     (when (and maximum-width (< maximum-width minimum-width))
-      (error "MAX-WIDTH ~D cannot be smaller than MIN-WIDTH ~D."
-             maximum-width minimum-width))
+      (error 'invalid-range-error
+             :context 'max-width
+             :datum maximum-width
+             :expected (format nil "no smaller than MIN-WIDTH (~D)" minimum-width)
+             :detail (format nil "MAX-WIDTH ~D cannot be smaller than MIN-WIDTH ~D."
+                              maximum-width minimum-width)))
     (when (and maximum-height (< maximum-height minimum-height))
-      (error "MAX-HEIGHT ~D cannot be smaller than MIN-HEIGHT ~D."
-             maximum-height minimum-height))
+      (error 'invalid-range-error
+             :context 'max-height
+             :datum maximum-height
+             :expected (format nil "no smaller than MIN-HEIGHT (~D)" minimum-height)
+             :detail (format nil "MAX-HEIGHT ~D cannot be smaller than MIN-HEIGHT ~D."
+                              maximum-height minimum-height)))
     (%make-constraints minimum-width
                        (%optional-extent preferred-width)
                        maximum-width
@@ -243,12 +253,26 @@ flexibility is used by layout containers when extra space is distributed."
 (defstruct (viewport
             (:copier nil)
             (:constructor %make-viewport
-                (bounds content-width content-height offset-x offset-y)))
+                (bounds content-width content-height %offset-x %offset-y)))
   (bounds (make-rectangle) :type rectangle)
   (content-width 0 :type (integer 0))
   (content-height 0 :type (integer 0))
-  (offset-x 0 :type (integer 0))
-  (offset-y 0 :type (integer 0)))
+  (%offset-x 0 :type (integer 0))
+  (%offset-y 0 :type (integer 0)))
+
+(defun viewport-offset-x (viewport)
+  "Return VIEWPORT's horizontal scroll offset.
+
+This value is kept clamped to [0, VIEWPORT-SCROLL-X-MAX] by the owning
+subsystem; use VIEWPORT-SCROLL-TO or VIEWPORT-SCROLL-BY to change it."
+  (viewport-%offset-x viewport))
+
+(defun viewport-offset-y (viewport)
+  "Return VIEWPORT's vertical scroll offset.
+
+This value is kept clamped to [0, VIEWPORT-SCROLL-Y-MAX] by the owning
+subsystem; use VIEWPORT-SCROLL-TO or VIEWPORT-SCROLL-BY to change it."
+  (viewport-%offset-y viewport))
 
 (defun make-viewport (&key (bounds (make-rectangle)) (content-width 0)
                            (content-height 0) (offset-x 0) (offset-y 0))
@@ -267,20 +291,20 @@ flexibility is used by layout containers when extra space is distributed."
             (rectangle-height (viewport-bounds viewport)))))
 
 (defun viewport-scroll-to (viewport x y)
-  (setf (viewport-offset-x viewport)
+  (setf (viewport-%offset-x viewport)
         (min (viewport-scroll-x-max viewport) (max 0 (%coordinate x 'x)))
-        (viewport-offset-y viewport)
+        (viewport-%offset-y viewport)
         (min (viewport-scroll-y-max viewport) (max 0 (%coordinate y 'y))))
   viewport)
 
 (defun viewport-scroll-by (viewport dx dy)
   (viewport-scroll-to viewport
-                      (+ (viewport-offset-x viewport) (%coordinate dx 'dx))
-                      (+ (viewport-offset-y viewport) (%coordinate dy 'dy))))
+                      (+ (viewport-%offset-x viewport) (%coordinate dx 'dx))
+                      (+ (viewport-%offset-y viewport) (%coordinate dy 'dy))))
 
 (defun viewport-visible-rectangle (viewport)
   (let ((bounds (viewport-bounds viewport)))
-    (make-rectangle (viewport-offset-x viewport)
-                    (viewport-offset-y viewport)
+    (make-rectangle (viewport-%offset-x viewport)
+                    (viewport-%offset-y viewport)
                     (rectangle-width bounds)
                     (rectangle-height bounds))))

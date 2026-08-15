@@ -21,8 +21,8 @@
 (defun %control-check-index (options index)
   (check-type index integer)
   (unless (and (>= index 0) (< index (length options)))
-    (error "Option index ~D is outside the range of ~D options."
-           index (length options)))
+    (error 'index-out-of-bounds-error :context "options" :index index
+           :count (length options)))
   index)
 
 (defmacro define-indexed-control-movement
