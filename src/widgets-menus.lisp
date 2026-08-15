@@ -25,6 +25,20 @@ This value is internal selection state kept within WIDGET's item count and
 paired with WIDGET's active submenu; use MENU-WIDGET-SELECT to change it."
   (%menu-widget-selected-index widget))
 
+(defmethod (setf menu-widget-items) :after (new-items (widget menu-widget))
+  "Keep WIDGET's selected index within NEW-ITEMS' bounds.
+
+MENU-WIDGET-ITEMS is a plain writable accessor, so an application may
+replace it directly with a shorter list.  Without this, the selected
+index would keep pointing past the new items' end, and the :UP handler's
+walk from that index -- which calls MENU-ITEM-ENABLED-P on each candidate
+before checking it is in range -- would call it on NIL once NTH ran past
+the new list."
+  (declare (ignore new-items))
+  (let ((count (length (menu-widget-items widget))))
+    (when (>= (%menu-widget-selected-index widget) count)
+      (setf (%menu-widget-selected-index widget) (max 0 (1- count))))))
+
 (defun menu-widget-active-submenu (widget)
   "Return the submenu that WIDGET's selected item opens, or NIL.
 
