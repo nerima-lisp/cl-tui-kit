@@ -302,7 +302,13 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
   (let ((stream (ansi-backend-stream backend))
         (previous (ansi-backend-previous-surface backend))
         (synchronized-p
-          (ansi-backend-synchronized-updates-enabled-p backend)))
+          (ansi-backend-synchronized-updates-enabled-p backend))
+        ;; Read once per frame, not once per changed cell: BACKEND-CAPABILITIES
+        ;; returns a fresh copy, so calling it inside the diff loop allocated a
+        ;; capability struct for every cell written.  Nothing in the loop can
+        ;; change the backend's capabilities, so hoisting is behaviour-neutral.
+        (color-capability
+          (backend-capabilities-color (backend-capabilities backend))))
     (when synchronized-p
       (%ansi-write-private-mode stream 2026 t))
     (unwind-protect
@@ -319,9 +325,7 @@ The mode remains enabled until ANSI-DISABLE-MOUSE-REPORTING or cleanup."
                    (%ansi-write-cursor stream x y)
                    (write-string (ansi-encode-style
                                   (if cell (cell-style cell) (make-style))
-                                  :color-capability
-                                  (backend-capabilities-color
-                                   (backend-capabilities backend)))
+                                  :color-capability color-capability)
                                  stream)
                    (write-string (%ansi-cell-text cell) stream)))))
            ;; A regional present does not establish the contents of the other

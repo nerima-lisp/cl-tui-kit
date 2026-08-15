@@ -11,6 +11,35 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [4.1.3]
+
+### Fixed
+
+- `backend-present` on the ANSI backend read `backend-capabilities` inside its
+  per-changed-cell loop. That reader returns a fresh copy, so a full-screen
+  redraw allocated one capability struct per cell written — and only a single
+  field of it was ever used. The read is hoisted to once per frame.
+
+  This was the largest of the remaining internal copying-reader calls by a
+  wide margin, and unlike the other four it needed no decision: the loop
+  cannot change the backend's capabilities, so hoisting is behaviour-neutral
+  and stays inside one file.
+
+### Known
+
+- Four internal copying-reader calls remain, all cross-package and all off the
+  hottest paths: `backend-size` (twice per frame), `backend-capabilities`
+  (twice, now only in the alternate-screen enter/leave paths),
+  `focus-node-children` (once per frame per focus node), `surface-clip` (once
+  per frame per viewport widget). Each is read from a package other than the
+  one defining its private accessor, so repointing needs either an export or a
+  `::` reference, neither of which this tree uses. `theme-style` is the fifth
+  and has no private accessor at all.
+
+  None of these has been measured. `theme-style` runs from
+  `%widget-role-style` several times per widget per frame and is the one worth
+  benchmarking first.
+
 ## [4.1.2]
 
 ### Fixed
@@ -288,7 +317,8 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.2...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.3...HEAD
+[4.1.3]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.2...v4.1.3
 [4.1.2]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.1...v4.1.2
 [4.1.1]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.0...v4.1.1
 [4.1.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.0.0...v4.1.0
