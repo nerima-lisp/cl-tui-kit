@@ -15,8 +15,13 @@ successful process exit. The SB-COVER runner measures executable project
 sources under `src/`, excludes only package/umbrella declarations and the
 static Unicode range table, and rejects both an empty test plan and an empty
 instrumented source set. CI runs it in a Linux Nix development environment;
-the regular flake check remains the cross-platform behavior and documentation
-gate.
+the regular flake check remains the behavior and documentation gate.
+
+The flake declares `x86_64-linux` only. On any other host `nix flake check`
+reports `The check omitted these incompatible systems: x86_64-linux`, runs
+nothing, and exits zero — a pass that verifies nothing. Read the warning
+line, not the exit status, and treat CI as the authoritative gate when
+developing on another platform.
 
 ### Coverage ratchet
 

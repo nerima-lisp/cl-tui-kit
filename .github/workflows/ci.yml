@@ -61,12 +61,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # flake.nix:75-78 declares exactly these two systems; the runners
-          # below are their corresponding GitHub-hosted images.
+          # Kept as a matrix with one entry so a second system is a two-line
+          # addition here plus one in flake.nix's `systems`, rather than a
+          # restructuring of this job.
           - os: ubuntu-latest
             system: x86_64-linux
-          - os: macos-14
-            system: aarch64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -305,7 +304,11 @@ jobs:
       - name: Check :version strings agree
         run: |
           # perl, not sed/awk, per this project's text-processing convention.
-          versions=$(perl -ne 'print "$1\n" if /:version\s+"([^"]+)"/' cl-tui-kit.asd)
+          # Anchored to a whole line so the two-argument dependency form
+          # `(:version "cl-weave" "1.3.0")` inside :depends-on is not read as
+          # a defsystem :version field -- an unanchored match extracts
+          # "cl-weave" and reports a disagreement that does not exist.
+          versions=$(perl -ne 'print "$1\n" if /^\s*:version\s+"([^"]+)"\s*$/' cl-tui-kit.asd)
 
           # A pattern that stopped matching (an ASDF syntax change, a typo
           # in this step) would make an empty $versions look identical to

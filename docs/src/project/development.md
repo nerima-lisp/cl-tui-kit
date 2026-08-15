@@ -44,9 +44,12 @@ condition from ordinary test success, and full coverage remains a target to
 close by exercising real behavior rather than by weakening the metric.
 
 CI runs this same SB-COVER entry point in the Nix development environment on
-Linux. The ordinary `nix flake check` remains the cross-platform behavior and
-documentation gate; the coverage job supplies the SBCL-specific executable
-coverage signal.
+Linux. The ordinary `nix flake check` remains the behavior and documentation
+gate; the coverage job supplies the SBCL-specific executable coverage signal.
+
+The flake declares `x86_64-linux` only, so `nix flake check` on another host
+omits every check and still exits zero. See
+[Quality Gates](quality-gates.md) before reading a local pass as evidence.
 
 The test system also uses cl-weave property tests for algebraic contracts such
 as idempotent modifier normalization. Keep property generators bounded and

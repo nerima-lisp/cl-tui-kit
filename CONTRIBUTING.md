@@ -58,9 +58,14 @@ repository root:
     nix flake check
     nix fmt
 
-`nix flake check` is the cross-platform behavior and documentation gate; it
-also builds the MkDocs site in strict mode, so a broken navigation link or a
-page missing from `docs/mkdocs.yml` fails the check.
+`nix flake check` is the behavior and documentation gate; it also builds the
+MkDocs site in strict mode, so a broken navigation link or a page missing
+from `docs/mkdocs.yml` fails the check.
+
+The flake declares `x86_64-linux` only. On another host the command prints
+`The check omitted these incompatible systems: x86_64-linux`, runs no checks,
+and exits zero. Read that warning rather than the exit status, and rely on CI
+when you are not on Linux.
 
 Outside Nix, or to run the SBCL-specific paths directly:
 

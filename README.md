@@ -36,7 +36,7 @@ Lisp implementation runs in this project's checks.
 
 | Implementation | Systems covered | Verified construction |
 | --- | --- | --- |
-| SBCL | All systems in this repository | x86_64-linux, aarch64-darwin |
+| SBCL | All systems in this repository | x86_64-linux |
 
 `src/` contains no `#+`/`#-` reader conditionals and no
 implementation-specific code, so loading under another conforming Common

@@ -36,7 +36,7 @@ First stable release.
   Code using `(handler-case ... (error (c) ...))` is unaffected; code that
   branched on the error message text must be updated to condition types.
 - Narrowed the supported-implementation statement to SBCL, verified on
-  `x86_64-linux` and `aarch64-darwin`.
+  `x86_64-linux`.
 - Eight exported accessors that expose a subsystem's internal state are now
   read-only: `surface-clip`, `ansi-backend-previous-surface`,
   `keymap-state-pending`, `keymap-state-pending-since`,
