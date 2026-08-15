@@ -584,6 +584,71 @@
     (is (search "A" (surface-string radio-surface)))
     (is (search "A" (surface-string select-surface)))))
 
+(deftest select-widget-close-paths-notify-consistently (:widgets)
+  ;; SELECT-WIDGET-TOGGLE (src/input-choice-controls.lisp:239-244) is the
+  ;; widget's sole named mutator for OPEN-P, and the only place that funcalls
+  ;; the constructor-supplied :ACTION callback for an open/close transition.
+  ;; WIDGET-HANDLE-EVENT used to close the dropdown directly via SETF at
+  ;; three other points -- Enter/Space while open, Escape while open, and a
+  ;; mouse press on an option -- bypassing the callback entirely.  Reverting
+  ;; any one of those three call sites back to a raw SETF turns the matching
+  ;; assertion below red.
+  (let* ((calls 0)
+         (select (make-select-widget
+                  '("Red" "Green")
+                  :selected-index 0
+                  :open-p t
+                  :action (lambda (widget)
+                            (declare (ignore widget))
+                            (incf calls)
+                            (custom-action :probe calls))
+                  :rectangle (test-rectangle 0 0 12 2))))
+    ;; Enter/Space while open selects, then closes: the callback must fire
+    ;; for both transitions, and the action SELECT-WIDGET-SELECT produced --
+    ;; not the subsequent close call's -- is what WIDGET-HANDLE-EVENT
+    ;; returns, since the return channel must stay unchanged.
+    (let ((action (widget-handle-event select (test-key :enter))))
+      (is-equal 2 calls)
+      (is-equal :probe (action-name action))
+      (is-equal 1 (action-payload action)))
+    (is (not (select-widget-open-p select))))
+  (let* ((calls 0)
+         (select (make-select-widget
+                  '("Red" "Green")
+                  :selected-index 0
+                  :open-p t
+                  :action (lambda (widget)
+                            (declare (ignore widget))
+                            (incf calls)
+                            nil)
+                  :rectangle (test-rectangle 0 0 12 2))))
+    ;; Escape while open closes without selecting anything; the callback
+    ;; must still fire, and the widget's own (CLOSE-ACTION NIL WIDGET)
+    ;; return is preserved rather than replaced by the callback's value.
+    (let ((action (widget-handle-event select (test-key :escape))))
+      (is-equal 1 calls)
+      (is-equal :close (action-name action))
+      (is-equal nil (action-payload action)))
+    (is (not (select-widget-open-p select))))
+  (let* ((calls 0)
+         (select (make-select-widget
+                  '("Red" "Green")
+                  :selected-index 0
+                  :open-p t
+                  :action (lambda (widget)
+                            (declare (ignore widget))
+                            (incf calls)
+                            (custom-action :probe calls))
+                  :rectangle (test-rectangle 0 0 12 2))))
+    ;; A mouse press on an option while open selects, then closes, mirroring
+    ;; the Enter/Space path above.
+    (let ((action (widget-handle-event
+                   select (make-mouse-event 0 1 :kind :press))))
+      (is-equal 2 calls)
+      (is-equal :probe (action-name action))
+      (is-equal 1 (action-payload action)))
+    (is (not (select-widget-open-p select)))))
+
 (deftest textarea-segment-and-control-contracts (:widgets)
   (let ((segments (list (cons 0 2) (cons 2 4))))
     (let ((segment (cl-tui-kit/widgets::%textarea-segment-at-cursor

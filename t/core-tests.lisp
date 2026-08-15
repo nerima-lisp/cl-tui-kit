@@ -113,6 +113,16 @@
     (is-equal (test-rectangle 0 0 4 2)
               (viewport-visible-rectangle viewport))))
 
+(deftest viewport-bounds-returns-independent-copy (:geometry)
+  (let* ((viewport (make-viewport :bounds (test-rectangle 1 2 3 4)))
+         (first (viewport-bounds viewport)))
+    (is-equal (test-rectangle 1 2 3 4) first)
+    (setf (rectangle-x first) 999)
+    (is-equal (test-rectangle 1 2 3 4) (viewport-bounds viewport))
+    (is (not (eq first (viewport-bounds viewport))))
+    (setf (viewport-bounds viewport) (test-rectangle 5 6 7 8))
+    (is-equal (test-rectangle 5 6 7 8) (viewport-bounds viewport))))
+
 (deftest style-and-theme (:style)
   (let* ((base (make-style :bold t :foreground (named-color :blue)))
          (overlay (make-style :underline t :foreground (rgb-color 1 2 3)))

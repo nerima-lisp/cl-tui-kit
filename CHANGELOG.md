@@ -11,6 +11,37 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [4.1.0]
+
+### Fixed
+
+- A select widget closed by Enter, Escape, or a mouse press did not fire the
+  `:action` callback the application supplied at construction, while one
+  closed through `select-widget-toggle` did. The returned semantic action was
+  correct on every path — that is the protocol's primary channel and it was
+  never affected — but an application watching the callback saw `:close` only
+  on the toggle path.
+
+  The toolkit's convention elsewhere is that state with a supported callback
+  is mutated through exactly one function which also fires it:
+  `checkbox-widget`, `spinner-widget-tick`, `spinner-widget-toggle`, and
+  `radio-widget-select` all work that way. The select widget's three close
+  paths bypassed `select-widget-toggle` with a direct assignment; they now go
+  through it.
+
+  `menu-widget` and `modal-widget` are unaffected: neither stores a callback,
+  so neither has an asymmetry to correct.
+
+### Added
+
+- Tests covering the copying readers introduced across the last four releases
+  — `viewport-bounds`, `focus-node-children`, `focus-tree-modal-stack`,
+  `widget-rectangle`, `widget-children`. Each asserts the returned value
+  matches what the sanctioned mutator stored, that successive calls are not
+  `eq`, and that mutating the returned object leaves the source unchanged. A
+  copying reader that forgot to copy, or returned a fresh empty object, would
+  previously have passed unnoticed.
+
 ## [4.0.0]
 
 The first three rounds audited only `defclass` `:accessor` slots. `grep -rn
@@ -203,7 +234,8 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
-[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/nerima-lisp/cl-tui-kit/compare/v1.0.0...v2.0.0
