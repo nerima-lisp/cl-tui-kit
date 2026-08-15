@@ -73,11 +73,23 @@ the underlying state instead — a dedicated mutator such as
 
 **Deciding whether a new accessor falls under this rule.** It does when some
 sanctioned function maintains an invariant behind the slot that a raw writer
-would bypass — the slot is not just storage, but state a specific piece of
-code keeps consistent with something else (another slot, a side effect
-already performed, an external resource). If no such invariant exists, an
-ordinary read/write accessor is the right shape; making it read-only would
-add friction without a matching safety.
+would bypass. In practice that invariant takes one of three shapes:
+
+- a bounds check — the slot holds an index or key that a sanctioned function
+  keeps within the bounds of a collection it also reads, so a raw write
+  could point it somewhere every other reader of that slot gets wrong;
+- a paired update — the slot is kept synchronized with another slot by the
+  same function, so writing it alone would leave the pair inconsistent;
+- a real side effect — the slot records something the toolkit has already
+  done elsewhere, such as an escape sequence written to the terminal or a
+  resource already opened, so a raw `setf` would desynchronize the record
+  from that action.
+
+If none of the three applies, an ordinary read/write accessor is the right
+shape, and that is a deliberate choice, not an oversight: the slot is
+storage the caller is meant to assign directly, with no sanctioned
+function's invariant behind it for a raw writer to bypass. Making such a
+slot read-only would add friction without a matching safety.
 
 The codebase expresses this in two shapes:
 

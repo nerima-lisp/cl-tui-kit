@@ -61,11 +61,28 @@
 
 (defclass list-widget (widget)
   ((model :initarg :model :accessor list-widget-model)
-   (selected-key :initarg :selected-key :accessor list-widget-selected-key
+   (selected-key :initarg :selected-key :accessor %list-widget-selected-key
                  :initform nil)
-   (offset :initarg :offset :accessor list-widget-offset :initform 0)
+   (offset :initarg :offset :accessor %list-widget-offset :initform 0)
    (row-height :initarg :row-height :accessor list-widget-row-height
                :initform 1)))
+
+(defun list-widget-selected-key (widget)
+  "Return WIDGET's selected key, or NIL when no row is selected.
+
+This value is internal selection state kept consistent with WIDGET's
+model; use LIST-WIDGET-SELECT-KEY to change it, or LIST-WIDGET-REFRESH to
+reconcile it after the model's contents change."
+  (%list-widget-selected-key widget))
+
+(defun list-widget-offset (widget)
+  "Return the index of the first visible row in WIDGET.
+
+This value is internal scroll state that the owning subsystem keeps
+clamped to the visible row window; it follows the selected key (see
+LIST-WIDGET-SELECT-KEY) and WIDGET's rendered size and has no direct
+setter."
+  (%list-widget-offset widget))
 
 (defun make-list-widget (model &key id rectangle style theme keymap selected-key
                                       (offset 0) (row-height 1) focusable-p)
@@ -88,7 +105,7 @@
             do (return index))))
 
 (defun %list-selected-index (widget)
-  (or (%list-index-for-key widget (list-widget-selected-key widget))
+  (or (%list-index-for-key widget (%list-widget-selected-key widget))
       (and (plusp (list-model-count (list-widget-model widget))) 0)))
 
 (defun list-widget-selected-index (widget)
@@ -106,18 +123,18 @@
       (let* ((actual (min (1- count) (max 0 index)))
              (item (list-model-item-at model actual))
              (key (list-model-key-at model item actual)))
-        (setf (list-widget-selected-key widget) key)
+        (setf (%list-widget-selected-key widget) key)
         (let* ((height (rectangle-height (widget-rectangle widget)))
                (row-height (list-widget-row-height widget))
                (rows (max 1 (floor height row-height)))
                (max-offset (max 0 (- count rows)))
-               (offset (list-widget-offset widget))
+               (offset (%list-widget-offset widget))
                (visible-offset
                  (cond
                    ((< actual offset) actual)
                    ((>= actual (+ offset rows)) (- (1+ actual) rows))
                    (t offset))))
-          (setf (list-widget-offset widget)
+          (setf (%list-widget-offset widget)
                 (max 0 (min visible-offset max-offset))))
         actual))))
 
@@ -127,8 +144,8 @@
       (%list-set-index widget index)
       (let* ((height (rectangle-height (widget-rectangle widget)))
              (rows (max 1 (floor height (list-widget-row-height widget)))))
-        (setf (list-widget-offset widget)
-              (max 0 (min (list-widget-offset widget)
+        (setf (%list-widget-offset widget)
+              (max 0 (min (%list-widget-offset widget)
                           (max 0 (- (list-model-count (list-widget-model widget))
                                     rows)))))))
   widget))
@@ -152,13 +169,13 @@
   (let* ((model (list-widget-model widget))
          (count (list-model-count model)))
     (if (zerop count)
-        (setf (list-widget-selected-key widget) nil
-              (list-widget-offset widget) 0)
+        (setf (%list-widget-selected-key widget) nil
+              (%list-widget-offset widget) 0)
         (%list-set-index widget
                          (or (%list-index-for-key
-                              widget (list-widget-selected-key widget))
+                              widget (%list-widget-selected-key widget))
                              (min (1- count)
-                                  (max 0 (list-widget-offset widget)))))))
+                                  (max 0 (%list-widget-offset widget)))))))
   widget)
 
 (defun list-widget-visible-items (widget)
@@ -170,7 +187,7 @@ queried lazily; no complete list is materialized."
          (height (rectangle-height (widget-rectangle widget)))
          (row-height (list-widget-row-height widget))
          (rows (if (plusp row-height) (ceiling height row-height) 0))
-         (start (min (list-widget-offset widget) (list-model-count model))))
+         (start (min (%list-widget-offset widget) (list-model-count model))))
     (loop for index from start below (min (list-model-count model) (+ start rows))
           for item = (list-model-item-at model index)
           for key = (list-model-key-at model item index)
@@ -195,10 +212,10 @@ queried lazily; no complete list is materialized."
                                        (%widget-role-style widget :selected))))
     (dolist (entry (list-widget-visible-items widget))
       (let* ((index (getf entry :index))
-             (row (- index (list-widget-offset widget)))
+             (row (- index (%list-widget-offset widget)))
              (y (+ (rectangle-y area) (* row row-height)))
              (selected (equalp (getf entry :key)
-                               (list-widget-selected-key widget)))
+                               (%list-widget-selected-key widget)))
              (style (if selected selected-style base-style)))
         (surface-fill-rectangle surface
                                  (make-rectangle (rectangle-x area) y
@@ -213,9 +230,9 @@ queried lazily; no complete list is materialized."
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :listbox))
     (setf (getf info :state)
-          (list :selected-key (list-widget-selected-key widget)
+          (list :selected-key (%list-widget-selected-key widget)
                 :selected-index (%list-selected-index widget)
-                :offset (list-widget-offset widget)
+                :offset (%list-widget-offset widget)
                 :count (list-model-count (list-widget-model widget))))
     info))
 
@@ -246,9 +263,9 @@ queried lazily; no complete list is materialized."
             (%list-set-index widget (1- count))
             (move-action :end 1 widget))
            ((or (eql key #\Space) (equalp key :space))
-            (toggle-action (list-widget-selected-key widget) widget))
+            (toggle-action (%list-widget-selected-key widget) widget))
            ((member key '(:enter :return) :test #'equalp)
-            (activate-action (list-widget-selected-key widget) widget))))))
+            (activate-action (%list-widget-selected-key widget) widget))))))
     ((and (typep event 'mouse-event)
           (eq (mouse-event-kind event) :press)
           (rectangle-contains-point-p
@@ -257,8 +274,8 @@ queried lazily; no complete list is materialized."
      (let* ((area (widget-rectangle widget))
             (row (floor (- (mouse-event-y event) (rectangle-y area))
                         (list-widget-row-height widget)))
-            (index (+ (list-widget-offset widget) row))
+            (index (+ (%list-widget-offset widget) row))
             (count (list-model-count (list-widget-model widget))))
        (when (and (>= row 0) (< index count))
          (%list-set-index widget index)
-         (select-action (list-widget-selected-key widget) widget))))))
+         (select-action (%list-widget-selected-key widget) widget))))))

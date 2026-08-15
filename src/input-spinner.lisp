@@ -4,11 +4,18 @@
 
 (defclass spinner-widget (widget)
   ((frames :initarg :frames :accessor spinner-widget-frames :initform nil)
-   (index :initarg :index :accessor spinner-widget-index :initform 0
+   (index :initarg :index :accessor %spinner-widget-index :initform 0
           :type integer)
    (running-p :initarg :running-p :accessor spinner-widget-running-p
               :initform t :type boolean)
    (action :initarg :action :accessor spinner-widget-action :initform nil)))
+
+(defun spinner-widget-index (widget)
+  "Return WIDGET's current frame index.
+
+This value is internal animation state kept within WIDGET's frame count by
+wrapping; use SPINNER-WIDGET-TICK to advance it."
+  (%spinner-widget-index widget))
 
 (defun make-spinner-widget
     (&key (frames nil frames-p)
@@ -51,12 +58,12 @@
                    :accessible-help-text accessible-help-text)))
 
 (defun spinner-widget-current-frame (widget)
-  (nth (spinner-widget-index widget) (spinner-widget-frames widget)))
+  (nth (%spinner-widget-index widget) (spinner-widget-frames widget)))
 
 (defun spinner-widget-tick (widget)
   (when (spinner-widget-running-p widget)
-    (setf (spinner-widget-index widget)
-          (mod (1+ (spinner-widget-index widget))
+    (setf (%spinner-widget-index widget)
+          (mod (1+ (%spinner-widget-index widget))
                (length (spinner-widget-frames widget))))
     (%widget-action (spinner-widget-action widget) :tick
                     (spinner-widget-current-frame widget) widget)))
@@ -91,7 +98,7 @@
     (setf (getf info :state)
           (list :running-p (spinner-widget-running-p widget)
                 :frame (spinner-widget-current-frame widget)
-                :index (spinner-widget-index widget)))
+                :index (%spinner-widget-index widget)))
     info))
 
 (defmethod widget-handle-event ((widget spinner-widget) event)

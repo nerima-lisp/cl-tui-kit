@@ -12,14 +12,21 @@
 (defclass tabs-widget (widget)
   ((tabs :initarg :tabs :accessor tabs-widget-tabs :initform nil)
    (selected-index :initarg :selected-index
-                   :accessor tabs-widget-selected-index :initform 0)))
+                   :accessor %tabs-widget-selected-index :initform 0)))
+
+(defun tabs-widget-selected-index (widget)
+  "Return WIDGET's selected tab index.
+
+This value is internal selection state kept within WIDGET's tab count and
+paired with the synced child content; use TABS-WIDGET-SELECT to change it."
+  (%tabs-widget-selected-index widget))
 
 (defun %first-enabled-tab (tabs)
   (loop for tab in tabs for index from 0
         when (tab-entry-enabled-p tab) do (return index)))
 
 (defun %tabs-current-entry (widget)
-  (let ((index (tabs-widget-selected-index widget)))
+  (let ((index (%tabs-widget-selected-index widget)))
     (and index (nth index (tabs-widget-tabs widget)))))
 
 (defun %tabs-sync-children (widget)
@@ -59,7 +66,7 @@
              (< index (length (tabs-widget-tabs widget)))
              (nth index (tabs-widget-tabs widget))
              (tab-entry-enabled-p (nth index (tabs-widget-tabs widget))))
-    (setf (tabs-widget-selected-index widget) index)
+    (setf (%tabs-widget-selected-index widget) index)
     (%tabs-sync-children widget)
     widget))
 
@@ -104,7 +111,7 @@
           for width = (+ 2 (string-cell-width (tab-entry-label tab)))
           do (surface-draw-text surface cursor (rectangle-y area) label
                                  :style (cond ((not (tab-entry-enabled-p tab)) muted-style)
-                                              ((= index (tabs-widget-selected-index widget))
+                                              ((= index (%tabs-widget-selected-index widget))
                                                selected-style)
                                               (t header-style))
                                  :max-width width)
@@ -118,7 +125,7 @@
   (let ((info (call-next-method)))
     (or (getf info :role) (setf (getf info :role) :tablist))
     (setf (getf info :state)
-          (list :selected-index (tabs-widget-selected-index widget)
+          (list :selected-index (%tabs-widget-selected-index widget)
                 :tabs (mapcar (lambda (tab)
                                 (list :key (tab-entry-key tab)
                                       :label (tab-entry-label tab)
@@ -130,7 +137,7 @@
   (let ((key (and (typep event 'key-event) (key-event-key event))))
     (cond
       ((member key '(:left :previous-tab) :test #'equalp)
-       (let ((index (tabs-widget-selected-index widget)))
+       (let ((index (%tabs-widget-selected-index widget)))
          (loop for candidate downfrom (1- index) to 0
                when (tab-entry-enabled-p (nth candidate (tabs-widget-tabs widget)))
                  do (tabs-widget-select widget candidate)
@@ -138,7 +145,7 @@
                                                                 (tabs-widget-tabs widget)))
                                            widget)))))
       ((member key '(:right :next-tab) :test #'equalp)
-       (let ((index (tabs-widget-selected-index widget)))
+       (let ((index (%tabs-widget-selected-index widget)))
          (loop for candidate from (1+ index) below (length (tabs-widget-tabs widget))
                when (tab-entry-enabled-p (nth candidate (tabs-widget-tabs widget)))
                  do (tabs-widget-select widget candidate)
