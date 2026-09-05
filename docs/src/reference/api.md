@@ -1465,9 +1465,8 @@ applications without a terminal. Depends on `cl-tui-kit/core` only.
 
 Optional integration with nerima-lisp's `cl-tty-kit`, providing
 terminal-size discovery and a synchronous input runtime. **Not covered by
-the v1.0.0 stability promise** — see [API Stability](../project/api-stability.md)
-for why: it depends on a sibling library not published to Quicklisp or
-Ultralisp, versioned on its own schedule outside this project's control.
+the v1.0.0 stability promise**; see [API Stability](../project/api-stability.md)
+for the policy.
 Loading `cl-tui-kit/core`, `/layout`, `/widgets`, `/ansi`, or `/testing`
 never requires this system or an interactive terminal; only code that
 explicitly depends on `cl-tui-kit/tty` pulls in terminal lifecycle side
@@ -1534,9 +1533,8 @@ effects.
 
 Optional integration with nerima-lisp's `cl-codec-kit`, for a backend or
 application that explicitly needs UTF-8 octets rather than Lisp strings.
-**Not covered by the v1.0.0 stability promise**, for the same reason as
-`cl-tui-kit/tty` — see [API Stability](../project/api-stability.md). Two
-exports total.
+**Not covered by the v1.0.0 stability promise**; see [API Stability](../project/api-stability.md).
+Two exports total.
 
 - `(string-to-utf8-octets string &key (start 0) end (errorp t))` — encodes
   `string` (or the `start`/`end` substring) as UTF-8 octets via
