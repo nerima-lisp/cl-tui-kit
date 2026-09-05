@@ -2,12 +2,6 @@
 
 ;;;; Incremental terminal input drain
 
-;;; All accesses in this file are internal to the state machine and go
-;;; directly through the raw struct accessors (TERMINAL-INPUT-PARSER-%BUFFER
-;;; and so on) defined in input-parser-model.lisp, with no wrapper layer in
-;;; between; the plain TERMINAL-INPUT-PARSER-* names are public, read-only,
-;;; and hand back a defensive copy where the slot is a string or list.
-
 (defun %terminal-input-parser-paste-suffix-length (buffer marker)
   (let ((limit (min (length buffer) (1- (length marker)))))
     (loop for suffix from limit downto 0

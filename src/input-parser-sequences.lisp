@@ -2,10 +2,6 @@
 
 ;;;; Terminal input escape and protocol sequences
 
-;;; As in input-parser.lisp, every access here goes directly through the
-;;; internal raw struct accessors; the public TERMINAL-INPUT-PARSER-* names
-;;; are read-only and copy-on-read where the slot is a string or list.
-
 (defun %terminal-input-parser-modifiers (parameter)
   (let ((mask (max 0 (1- (or parameter 1)))))
     (normalize-modifiers

@@ -19,19 +19,9 @@ more input arrives."
   (max-sequence-length 256 :type (integer 1 *))
   (max-paste-length (* 1024 1024) :type (integer 1 *)))
 
-;;; The four slots above are mutated throughout the escape-sequence and paste
-;;; state machine, so they cannot be :read-only struct slots. Instead their
-;;; struct-generated accessors stay private (the %buffer slot name keeps them
-;;; under the default TERMINAL-INPUT-PARSER- conc-name but with a leading %),
-;;; and internal code throughout the parser calls those raw struct accessors
-;;; (TERMINAL-INPUT-PARSER-%BUFFER and so on) directly, with no wrapper layer
-;;; in between -- this project never DECLAIMs anything INLINE, so a hand-
-;;; written wrapper on the per-token drain loop would be a real, uninlined
-;;; function call added for no benefit. The public TERMINAL-INPUT-PARSER-*
-;;; names below are ordinary DEFUNs, not SETF-able accessors, so external
-;;; callers can no longer SETF them; the three that hand back a string or
-;;; list additionally return a defensive copy, so mutating the returned
-;;; value in place cannot desynchronize the state machine either.
+;;; The slots are mutable state, so their generated accessors remain private.
+;;; Public accessors below are ordinary functions and return defensive copies
+;;; for string and list values.
 
 (defun make-terminal-input-parser (&key (max-sequence-length 256)
                                         (max-paste-length (* 1024 1024)))
