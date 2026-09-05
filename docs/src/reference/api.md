@@ -1546,4 +1546,3 @@ exports total.
   writes to `stream` (which must accept `(unsigned-byte 8)` elements) via
   `write-sequence`; returns the octets written. Does not change stream
   modes or terminal state.
-  and is not a `rectangle`.
