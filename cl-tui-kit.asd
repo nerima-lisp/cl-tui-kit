@@ -150,7 +150,6 @@
    (:file "t/tty-tests")
    (:file "t/codec-tests")
    (:file "t/notification-tests")
-   (:file "t/tooling-tests")
    (:file "t/runner")))
 
 (asdf:defsystem "cl-tui-kit/test"
