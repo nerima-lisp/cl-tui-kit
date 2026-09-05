@@ -145,7 +145,7 @@ Exported readers:
 Marks `task` cancelled and wakes the loop. Cancellation is idempotent —
 calling it again on an already-cancelled task is a no-op — and does not
 remove the task object from the loop's internal list; a cancelled task is
-simply skipped by both readiness checks (`event-loop-next-deadline`,
+skipped by both readiness checks (`event-loop-next-deadline`,
 `event-loop-pending-task-count`) and by `event-loop-step` itself. Signals
 `invalid-type-error` if `task` is not an `event-loop-task`.
 
@@ -190,8 +190,8 @@ Repeatedly calls `event-loop-step` until one of:
 - `until` (a function of one argument, the loop) returns true.
 
 Returns the number of work items processed. Like `event-loop-step`, it never
-sleeps; an idle loop with no `max-steps` or `until` limit simply returns as
-soon as it finds no ready work. `event-loop-running-p` is true for the
+sleeps; an idle loop with no `max-steps` or `until` limit returns as soon as
+it finds no ready work. `event-loop-running-p` is true for the
 duration of the call, via `unwind-protect`, so it becomes `nil` again even
 if a propagated condition unwinds past this call.
 

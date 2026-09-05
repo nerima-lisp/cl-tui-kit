@@ -68,7 +68,7 @@ state. The tty and codec integrations are separate systems that applications
 can load explicitly.
 
 The widgets application layer is split into event dispatch and runtime
-lifecycle modules. The resulting data path is easy to test without opening a
+lifecycle modules. The resulting data path can be tested without opening a
 terminal, while `application-render/k`, `application-step/k`,
 `call-with-application-session`, `with-application-session`,
 `call-with-surface-clip`, and the optional TTY integration keep cleanup
