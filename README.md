@@ -29,63 +29,10 @@ For deterministic frame checks, use the testing backend:
       (cl-tui-kit/core:backend-present backend surface)
       (cl-tui-kit/testing:test-backend-last-frame backend))
 
-## Supported implementations
+## Install and supported implementations
 
-cl-tui-kit is developed and verified against SBCL only; no other Common
-Lisp implementation runs in this project's checks.
-
-| Implementation | Systems covered | Verified construction |
-| --- | --- | --- |
-| SBCL | All systems in this repository | x86_64-linux |
-
-`src/` contains no `#+`/`#-` reader conditionals and no
-implementation-specific code, so loading under another conforming Common
-Lisp implementation is plausible, but that has not been verified and is not
-supported.
-
-## Install
-
-cl-tui-kit is distributed as ASDF systems in this repository; it is not yet
-published to Quicklisp or Ultralisp. A fresh checkout is invisible to ASDF
-until its directory is registered, so `(asdf:load-system "cl-tui-kit")` fails
-with `Component "cl-tui-kit" not found` unless one of the following is done
-first.
-
-The pure umbrella system — `cl-tui-kit/core`, `/layout`, `/widgets`, `/ansi`,
-and `/testing` — has no dependency outside this repository and Quicklisp.
-Only the optional `cl-tui-kit/tty`, `cl-tui-kit/codec`, and `cl-tui-kit/tests`
-systems require sibling nerima-lisp checkouts: `cl-tui-kit/tty` needs
-`cl-tty-kit`; `cl-tui-kit/codec` needs `cl-codec-kit`; and `cl-tui-kit/tests`
-loads both optional systems and needs `cl-host-kit` and `cl-weave`. The TTY
-dependency chain also uses `cl-boundary-kit`, `cl-date-kit`, and
-`cl-concurrent-kit`. Skip those siblings entirely if only the pure umbrella
-system is being loaded.
-
-Register the checkout with ASDF using either of the following methods, then
-load the umbrella system as usual.
-
-**Source-registry config file** (recommended; picked up automatically):
-
-    mkdir -p ~/.config/common-lisp/source-registry.conf.d
-    echo '(:tree "/absolute/path/to/cl-tui-kit/")' \
-      > ~/.config/common-lisp/source-registry.conf.d/cl-tui-kit.conf
-
-**`*central-registry*`** (per-session, before loading):
-
-    (push #P"/absolute/path/to/cl-tui-kit/" asdf:*central-registry*)
-
-Either way, the checkout only needs to be registered once (or once per
-session, for the `*central-registry*` form); after that:
-
-    (asdf:load-system "cl-tui-kit")
-
-Use `cl-tui-kit/core` when an application needs only the dependency-free core;
-load the optional integration systems explicitly when terminal or codec support
-is required. If `cl-tui-kit/tty`, `cl-tui-kit/codec`, or `cl-tui-kit/tests` is
-loaded, also register the corresponding sibling nerima-lisp repositories
-listed above using the same method. The checked-in test and coverage runners
-can discover adjacent ASDF definitions for this dependency chain; set
-`CL_WEAVE_ASD` when cl-weave is stored elsewhere.
+See [Getting Started](docs/src/getting-started.md) for ASDF registration,
+optional dependencies, supported implementations, and system selection.
 
 ## Documentation
 
@@ -137,26 +84,9 @@ readable lexical scope or a repeated protocol invariant.
 
 ## Development
 
-Run the test suite from the repository root:
-
-    sbcl --script run-tests.lisp
-
-The test and coverage entry points include the optional TTY and codec
-integration systems. They discover adjacent dependency ASDF definitions when
-needed and accept `CL_WEAVE_ASD` for a non-adjacent cl-weave checkout. The
-coverage entry point recompiles the project with SB-COVER before selecting
-tests:
-
-    sbcl --script run-coverage.lisp
-
-When Nix is available, the repository also exposes the standard development
-checks:
-
-    nix flake check
-    nix fmt
-
-The domain-neutral searchable-list example is in
-[examples/searchable-list.lisp](examples/searchable-list.lisp).
+See [Development](docs/src/project/development.md) for tests, coverage, Nix
+checks, and structural source checks. The domain-neutral searchable-list
+example is in [examples/searchable-list.lisp](examples/searchable-list.lisp).
 
 ## Contributing
 
@@ -176,15 +106,9 @@ smallest reproducing frame or event sequence, and the command that was run.
 
 ## Design boundaries
 
-Applications own domain state, I/O side effects, process management, and
-application policy. Widgets render state and return semantic actions; the
-application decides whether an action changes a file, starts a process, or
-connects to a service.
-
-The toolkit is not a terminal multiplexer, terminal emulator, PTY runtime, or
-scrollback store. It does not interpret arbitrary application output as a
-terminal screen. The complete implemented capability map is in the
-[Feature Matrix](docs/src/reference/api.md#feature-matrix).
+See [Architecture](docs/src/reference/architecture.md) for ownership and
+non-responsibilities, and the [Feature Matrix](docs/src/reference/api.md#feature-matrix)
+for the implemented capability map.
 
 ## License
 
