@@ -1,5 +1,22 @@
 (in-package #:cl-tui-kit/tests)
 
+(deftest list-model-count-bounds-invalid-callback-value (:widgets)
+  (let* ((value (loop for i below 10
+                      collect (make-string
+                               500 :initial-element (code-char (+ 65 i)))))
+         (model (make-list-model
+                 :count (lambda () value)
+                 :item-at (lambda (index)
+                            (declare (ignore index))
+                            nil)))
+         (condition
+           (handler-case (progn (list-model-count model) nil)
+             (error (caught) caught))))
+    (is (typep condition 'callback-contract-error))
+    (let ((datum (callback-contract-error-value condition)))
+      (is (stringp datum))
+      (is (<= (length datum) 250)))))
+
 (deftest list-and-tree-model-events (:widgets)
   (let ((default-model
           (make-list-model
