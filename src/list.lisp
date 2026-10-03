@@ -35,7 +35,8 @@
 
 (defun %validated-model-count (value name)
   (unless (and (integerp value) (>= value 0))
-    (error 'callback-contract-error :callback name :value (bounded-datum value)
+    (error 'callback-contract-error :callback name
+           :value (cl-tui-kit/core::bounded-datum value)
            :detail (format nil "~A must return a non-negative integer." name)))
   value)
 
