@@ -256,6 +256,32 @@ avoid leaving an invalid dangling continuation in the surface."
        (loop for column from x below (+ x span)
              always (%surface-visible-p surface column y))))
 
+(defun %surface-store-cell (surface x y stored)
+  "Store an owned, valid cell at a point already checked against the clip."
+  ;; A continuation is renderer metadata; replacing it clears its complete unit.
+  (let ((span (if (cell-continuation-p stored)
+                  1
+                  (max 1 (cell-span stored)))))
+    (if (cell-continuation-p stored)
+        (let ((old-area (%clear-cell-unit-at
+                         surface x y (surface-default-style surface))))
+          (when old-area
+            (surface-mark-dirty surface old-area)))
+        (when (%surface-span-visible-p surface x y span)
+          (let ((old-area (%clear-cell-unit-at
+                           surface x y (surface-default-style surface))))
+            (when old-area
+              (surface-mark-dirty surface old-area))
+            (setf (aref (surface-cells surface) (%surface-index surface x y))
+                  stored)
+            (when (> span 1)
+              (loop for offset from 1 below span
+                    do (setf (aref (surface-cells surface)
+                                   (%surface-index surface (+ x offset) y))
+                             (%make-cell "" (copy-style (cell-style stored)) 0 t))))
+            (surface-mark-dirty surface (make-rectangle x y span 1)))))
+  surface))
+
 (defun surface-put-cell (surface x y cell)
   (check-type cell cell)
   ;; Validate even when the target is clipped: accepting malformed cell
@@ -266,32 +292,12 @@ avoid leaving an invalid dangling continuation in the surface."
                            (cell-span cell)
                            (cell-continuation-p cell))
   (when (%surface-visible-p surface x y)
-    (let* ((stored (copy-cell cell))
-           (span (if (cell-continuation-p stored)
-                     1
-                     (max 1 (cell-span stored)))))
-      ;; A continuation is renderer metadata, not an independently drawable
-      ;; glyph.  Replacing one clears the complete old unit, which preserves
-      ;; the invariant that every continuation has a lead cell.
-      (if (cell-continuation-p stored)
-          (let ((old-area (%clear-cell-unit-at
-                           surface x y (surface-default-style surface))))
-            (when old-area
-              (surface-mark-dirty surface old-area)))
-          (when (%surface-span-visible-p surface x y span)
-            (let ((old-area (%clear-cell-unit-at
-                             surface x y (surface-default-style surface))))
-              (when old-area
-                (surface-mark-dirty surface old-area))
-              (setf (aref (surface-cells surface) (%surface-index surface x y))
-                    stored)
-              (when (> span 1)
-                (loop for offset from 1 below span
-                      do (setf (aref (surface-cells surface)
-                                     (%surface-index surface (+ x offset) y))
-                                (make-cell "" :style (cell-style stored)
-                                           :span 0 :continuation-p t))))
-              (surface-mark-dirty surface (make-rectangle x y span 1)))))))
+    (%surface-store-cell
+     surface x y
+     (%make-cell (cell-content cell)
+                 (copy-style (cell-style cell))
+                 (cell-span cell)
+                 (cell-continuation-p cell))))
   surface)
 
 (defun surface-clear (surface &optional rectangle style)
@@ -329,7 +335,9 @@ avoid leaving an invalid dangling continuation in the surface."
             (rectangle-contains-point-p (surface-%clip surface) x y)
             (rectangle-contains-point-p
              (surface-%clip surface) (1- (+ x width)) y))
-       (surface-put-cell surface x y (make-cell unit :style style :span width))
+       (%surface-store-cell
+        surface x y
+        (%make-cell unit (copy-style style) width nil))
        t)
       (t nil))))
 
