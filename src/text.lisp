@@ -15,13 +15,30 @@
   (<= low code high))
 
 (defun %unicode-range-member-p (code ranges)
-  (some (lambda (range)
-          (%unicode-range-p code (first range) (second range)))
-        ranges))
+  (let* ((ranges (if (vectorp ranges)
+                     ranges
+                     (coerce ranges 'vector)))
+         (low 0)
+         (high (1- (length ranges))))
+    (loop while (<= low high)
+          do (let* ((middle (ash (+ low high) -1))
+                    (range (aref ranges middle)))
+               (cond
+                 ((< code (first range))
+                  (setf high (1- middle)))
+                 ((> code (second range))
+                  (setf low (1+ middle)))
+                 (t (return t))))
+          finally (return nil))))
 
 (defmacro define-unicode-range-predicate (name ranges)
-  `(defun ,name (code)
-     (%unicode-range-member-p code ,ranges)))
+  (let ((range-index
+          (intern (format nil "*~A-RANGE-INDEX*" (symbol-name name))
+                  (symbol-package name))))
+    `(progn
+       (defparameter ,range-index (coerce ,ranges 'vector))
+       (defun ,name (code)
+         (%unicode-range-member-p code ,range-index)))))
 
 (define-unicode-range-predicate %combining-code-p *combining-code-ranges*)
 
@@ -40,10 +57,16 @@ zero-width joiners return zero.  Grapheme-like clusters should be passed to
 TEXT-UNIT-WIDTH instead."
   (let ((code (char-code character)))
     (cond
-      ((or (zerop code) (< code 32) (= code 127)) 0)
+      ((< code 32) 0)
+      ((< code 127) 1)
+      ((= code 127) 0)
       ((or (%combining-code-p code)
            (= code #x200b) (= code #x200c) (= code #x200d)
            (%emoji-modifier-p code)) 0)
+      ((or (<= #x2e80 code #x303e)
+           (<= #x3040 code #xa4cf)
+           (<= #xac00 code #xd7a3))
+       2)
       ((%wide-code-p code) 2)
       ((and (eq ambiguous-width :wide) (%ambiguous-code-p code)) 2)
       (t 1))))

@@ -176,6 +176,46 @@
     (is-equal "日" (clip-text (format nil "~C" wide) 2))
     (is-equal "abc…" (truncate-text "abcdef" 4))
     (is-equal 2 (string-cell-width (format nil "ab~Ccd" #\Newline)))))
+(deftest unicode-cell-width-matches-linear-reference (:text)
+  (let ((comparisons 0)
+        (mismatch-count 0)
+        (mismatch-samples nil))
+    (labels ((linear-range-member-p (code ranges)
+               (some (lambda (range)
+                       (<= (first range) code (second range)))
+                     ranges))
+             (reference-cell-width (code ambiguous-width)
+               (cond
+                 ((or (zerop code) (< code 32) (= code 127)) 0)
+                 ((or (linear-range-member-p
+                       code cl-tui-kit/core::*combining-code-ranges*)
+                      (= code #x200b) (= code #x200c) (= code #x200d)
+                      (<= #x1f3fb code #x1f3ff))
+                  0)
+                 ((linear-range-member-p
+                   code cl-tui-kit/core::*wide-code-ranges*)
+                  2)
+                 ((and (eq ambiguous-width :wide)
+                       (linear-range-member-p
+                        code cl-tui-kit/core::*ambiguous-code-ranges*))
+                  2)
+                 (t 1))))
+      (loop for code from 0 to #x10ffff
+            for character = (code-char code)
+            do (unless character
+                 (error "No character represents code point #x~X." code))
+               (dolist (ambiguous-width (list :narrow :wide))
+                 (incf comparisons)
+                 (let ((expected (reference-cell-width code ambiguous-width))
+                       (actual (cell-width character ambiguous-width)))
+                   (unless (eql expected actual)
+                     (incf mismatch-count)
+                     (when (< (length mismatch-samples) 10)
+                       (push (list code ambiguous-width expected actual)
+                             mismatch-samples))))))
+      (is-equal (* 2 #x110000) comparisons)
+      (is-equal (list 0 nil)
+                (list mismatch-count (nreverse mismatch-samples))))))
 
 ;;;; TEXT-WIDTH-DATA is a static Unicode range table excluded from coverage
 ;;;; measurement (t/runner.lisp), so these property tests -- not example

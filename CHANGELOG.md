@@ -11,6 +11,15 @@ may change in a minor release.
 
 ## [Unreleased]
 
+## [4.1.5]
+
+### Changed
+
+- `cell-width` now uses binary search over the Unicode range tables, with fast
+  paths for ASCII and CJK code points in U+2E80–U+303E, U+3040–U+A4CF, and
+  U+AC00–U+D7A3. Exhaustive comparison confirms unchanged widths across all
+  code points under both ambiguous-width policies.
+
 ## [4.1.3]
 
 ### Fixed
@@ -317,6 +326,7 @@ First stable release.
 
 [keepachangelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
+[4.1.5]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.4...v4.1.5
 [Unreleased]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.3...HEAD
 [4.1.3]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.2...v4.1.3
 [4.1.2]: https://github.com/nerima-lisp/cl-tui-kit/compare/v4.1.1...v4.1.2
